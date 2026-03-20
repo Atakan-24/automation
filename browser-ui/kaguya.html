@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kaguya Sketch</title>
+  <style>
+    body { margin:0; background:#05060e; display:flex; min-height:100vh; align-items:center; justify-content:center; font-family:'Segoe UI',sans-serif; color:#fff; }
+    #portrait { width:320px; height:480px; background:linear-gradient(180deg,#11192b 0%,#0b0f1c 100%); border:3px solid #242c42; border-radius:24px; padding:24px; box-shadow:0 20px 40px rgba(0,0,0,0.8); position:relative; }
+    #face { width:150px; height:180px; background:#ffe6c4; border-radius:80%/90%; position:absolute; left:50%; top:80px; transform:translateX(-50%); }
+    #hair { position:absolute; width:220px; height:260px; background:#1d1c28; border-radius:110px 110px 40px 40px; top:0; left:50%; transform:translateX(-50%); }
+    #top-band { width:220px; height:30px; background:#e60768; border-radius:20px; position:absolute; top:42px; left:50%; transform:translateX(-50%); box-shadow:0 4px 10px rgba(0,0,0,0.4); }
+    #eyes { position:absolute; top:130px; left:50%; transform:translateX(-50%); width:100px; display:flex; justify-content:space-between; }
+    #eyes span { width:35px; height:14px; border-radius:10px; background:#222; border:3px solid #fff7e8; box-shadow:inset 0 -4px rgba(0,0,0,0.4); }
+    #braids { position:absolute; width:80px; height:200px; left:20px; top:140px; }
+    #braids::before,#braids::after { content:''; position:absolute; width:40px; height:200px; background:#1d1c28; border-radius:30px; }
+    #braids::after { left:40px; }
+    #collar { position:absolute; bottom:50px; left:50%; transform:translateX(-50%); width:200px; height:90px; background:linear-gradient(180deg,#fff 0%,#d8d3ff 100%); border-radius:100px 100px 40px 40px; box-shadow:0 10px 20px rgba(0,0,0,0.4); }
+    #glow { position:absolute; inset:0; pointer-events:none; background:radial-gradient(circle at 50% 20%,rgba(230,7,104,0.3),transparent 200px); }
+    #text { position:absolute; bottom:8px; width:100%; text-align:center; font-size:14px; letter-spacing:2px; color:#a6b0ff; }
+  </style>
+</head>
+<body>
+  <div id="portrait">
+    <div id="glow"></div>
+    <div id="hair"></div>
+    <div id="top-band"></div>
+    <div id="face"></div>
+    <div id="eyes">
+      <span></span>
+      <span></span>
+    </div>
+    <div id="braids"></div>
+    <div id="collar"></div>
+    <p id="text">KAGUYA SHINOMIYA</p>
+  </div>
+</body>
+</html>
