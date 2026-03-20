@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tetris Mobile</title>
+  <style>
+    html, body { margin:0; padding:0; background:#111; color:#fff; font-family:monospace; display:flex; justify-content:center; }
+    #game { background:#000; border:5px solid #222; touch-action:none; }
+    #hud { display:flex; flex-direction:column; margin-left:16px; }
+    #hud span { margin-bottom:8px; }
+    button { background:#222; color:#fff; border:1px solid #555; padding:8px 12px; margin-top:4px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="300" height="600"></canvas>
+  <div id="hud">
+    <span id="score">Score: 0</span>
+    <span id="level">Level: 1</span>
+    <span id="status">Status: running</span>
+    <button id="restart">Restart</button>
+  </div>
+  <script src="browser-ui/tetris_web.js"></script>
+</body>
+</html>
