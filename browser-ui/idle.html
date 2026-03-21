@@ -5,24 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Shin Zero Art</title>
 <style>
-body {margin:0;background:#01030c;color:#f8f8ff;font-family:'Fira Code',monospace;}
-#page {min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:16px;}
-#canvas {width:95vw;max-width:1040px;padding:32px;border-radius:32px;background:linear-gradient(180deg,#050a15,#01030c);border:1px solid rgba(255,255,255,0.2);box-shadow:0 20px 60px rgba(0,0,0,0.7);position:relative;overflow:hidden;}
-#glow {position:absolute;inset:-20px;background:radial-gradient(circle at 50% 20%,rgba(230,7,104,0.45),rgba(40,108,255,0.15) 50%,transparent 70%);filter:blur(10px);animation:throb 3s ease-in-out infinite;}
-@keyframes throb {0% {opacity:0.4;}50%{opacity:0.9;}100%{opacity:0.4;}}
-#title {text-align:center;margin-bottom:12px;font-size:22px;letter-spacing:8px;color:#f0f8ff;text-shadow:0 0 20px rgba(255,255,255,0.5);}
-#art {font-size:10px;line-height:1;white-space:pre;margin:0;color:#eef6ff;text-shadow:0 0 6px rgba(255,255,255,0.3);}
-#caption {margin-top:16px;font-size:12px;text-align:center;color:#a4a8c6;letter-spacing:2px;}
-@media (max-width:768px){#canvas{padding:24px;}#art{font-size:8px;}}
+body {margin:0;background:#000209;color:#f8f8ff;font-family:'Fira Code',monospace;}
+#page {min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;gap:16px;}
+#canvas {width:95vw;max-width:1040px;padding:48px;border-radius:36px;background:linear-gradient(180deg,#050b17,#01030c);border:none;box-shadow:0 40px 80px rgba(0,0,0,0.85);position:relative;overflow:hidden;}
+#glow {position:absolute;inset:-40px;background:radial-gradient(circle at 50% 30%,rgba(230,7,104,0.55),rgba(47,97,255,0.2) 55%,transparent 70%);filter:blur(12px);animation:throb 3s ease-in-out infinite;}
+@keyframes throb {0% {opacity:0.4;}50% {opacity:0.9;}100% {opacity:0.4;}}
+#title {text-align:center;margin-bottom:12px;font-size:24px;letter-spacing:8px;color:#9cc0ff;}
+#art {font-size:9.2px;line-height:1.1;white-space:pre;margin:0;color:#fefefe;text-shadow:0 0 8px rgba(255,255,255,0.25);}
+#helper {margin-top:16px;font-size:12px;text-align:center;color:#9ca0c8;letter-spacing:3px;}
 </style>
 </head>
 <body>
 <div id="page">
   <div id="canvas">
     <div id="glow"></div>
-    <div id="title">SHIN ZERO TRACKER</div>
+    <div id="title">SHIN ZERO ART</div>
     <pre id="art">⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⠿⠛⠛⠛⠛⠻⠿⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿</pre>
-    <div id="caption">Glow indicates: ich arbeite gerade. Schau einfach zu.</div>
+    <div id="helper">Glow zeigt: ich arbeite. Schau einfach auf die Kunst.</div>
   </div>
 </div>
 </body>
