@@ -3,16 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shin Zero Art</title>
+<title>Shin Zero Live</title>
 <style>
-body {margin:0; background:#01010a; display:flex; align-items:center; justify-content:center; min-height:100vh; font-family:'Fira Code',monospace;}
-#canvas {width:90vw; max-width:1024px; padding:40px; background:#01030c;}
-#art {font-size:10px; line-height:1.05; white-space:pre; color:#fefefe;}
+body{margin:0;background:#000209;color:#f8f8ff;font-family:'Fira Code',monospace;}
+#page{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px;gap:24px;}
+#canvas{width:95vw;max-width:1040px;padding:48px;border-radius:36px;background:linear-gradient(180deg,#050b17,#01030c);box-shadow:0 40px 80px rgba(0,0,0,0.85);position:relative;overflow:hidden;}
+#glow{position:absolute;inset:-40px;background:radial-gradient(circle at 50% 20%,rgba(230,7,104,0.65),rgba(47,97,255,0.2) 55%,transparent 75%);filter:blur(14px);animation:throb 3s ease-in-out infinite;}
+@keyframes throb{0%{opacity:0.4;}50%{opacity:0.92;}100%{opacity:0.4;}}
+#art{font-size:10px;line-height:1.1;white-space:pre;margin:0;color:#fefefe;text-shadow:0 0 10px rgba(255,255,255,0.35);}
+#log-panel{width:90vw;max-width:980px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;}
+.card{background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.08);border-radius:18px;padding:16px;box-shadow:0 15px 30px rgba(0,0,0,0.45);}
+.card h2{margin:0 0 12px;font-size:16px;letter-spacing:2px;text-transform:uppercase;color:#fefefe;}
+.card div{max-height:200px;overflow:auto;font-size:12px;line-height:1.5;color:#dfe3ff;border-top:1px solid rgba(255,255,255,0.1);padding-top:8px;}
+.card div div{padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.08);}
+.card div div:last-child{border-bottom:none;}
+.sup{color:#7f88b1;font-size:11px;}
 </style>
 </head>
 <body>
-<div id="canvas">
-<pre id="art">⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⣤⣤⣤⣤⣄⣀⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+<div id="page">
+  <div id="canvas">
+    <div id="glow"></div>
+    <pre id="art">⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⣤⣤⣤⣤⣄⣀⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣤⠶⣻⠝⠋⠠⠔⠛⠁⡀⠀⠈⢉⡙⠓⠶⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⢋⣴⡮⠓⠋⠀⠀⢄⠀⠀⠉⠢⣄⠀⠈⠁⠀⡀⠙⢶⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⢁⣔⠟⠁⠀⠀⠀⠀⠀⠈⡆⠀⠀⠀⠈⢦⡀⠀⠀⠘⢯⢢⠙⢦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
@@ -24,23 +36,8 @@ body {margin:0; background:#01010a; display:flex; align-items:center; justify-co
 ⠀⠀⠀⠀⠀⠀⠀⢀⡿⣠⡣⠃⣿⠃⠀⠀⠀⠀⣸⣳⣿⠇⣇⢸⣿⢸⣠⠼⠀⠀⠀⡇⠀⡀⠉⠒⣾⢾⣆⢟⣳⡶⠓⠶⠿⢼⣿⣇⠈⡇⠘⢆⠈⢿⡘⣷⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠈⢷⣍⣤⡶⣿⡄⠀⠀⠀⢠⣿⠃⣿⠀⡏⢸⣿⣿⠀⢸⠀⠀⢠⡗⢀⠇⠀⢠⡟⠀⠻⣾⣿⠀⠀⠀⠀⡏⣿⣿⡀⢹⡀⠈⢦⠈⢷⣿⡆⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢁⣤⣄⠁⠀⠀⠀⣼⡏⢰⣟⠀⣇⠘⣿⣿⣾⣾⣆⢀⣾⠃⣼⢠⣶⣿⣭⣷⣶⣾⣿⣤⠀⠀⠀⡇⡯⣍⣧⠀⣷⠄⠈⢳⡀⢻⡁⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠺⣿⡿⠀⠀⠀⠀⡿⢀⣾⣧⠀⡗⡄⢿⣿⡙⣽⣿⣟⠛⠚⠛⠙⠉⢹⣿⣿⣦⠀⢸⡿⠀⠀⠀⢰⡯⣌⢻⡀⢸⢠⢰⡄⠹⡷⣿⣦⣤⠤⣶⡇⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⣇⣾⣿⢸⢠⣧⢧⠘⣿⡇⠸⣿⢿⡆⠀⠀⠀⠀⠘⣯⠇⣿⠂⣸⢰⠀⠀⢀⣸⡧⣊⣼⡇⢸⣼⣸⣷⢣⢻⣄⠉⠙⠛⠉⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣳⣤⣴⣿⣏⣿⣾⢸⣿⡘⣧⣘⢿⣀⡙⣞⠁⠀⠀⠀⠀⢀⡬⢀⣉⢠⣧⡏⠀⠀⡎⣿⣿⣿⣿⠃⣸⡏⣿⣿⡎⢿⡘⡆⠀⠀⠀⠀⠀⠀⠀</pre>
-  <div id="activity">
-    <h2>Live Activity</h2>
-    <div id="log">Loading…</div>
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠺⣿⡿⠀⠀⠀⠀⡿⢀⣾⣧⠀⡗⡄⢿⣿⡙⣽⣿⣟⠛⠚⠛⠙⠉⢹⣿⣿⣦⠀⢸⡿⠀⠀⠀⢰⡯⣌⢻⡀⢸⢠⢰⡄⠹⡷⣿⣦⣤⠤⣶⡇⠀⠀⠀</pre>
   </div>
 </div>
-<script>
-const div=document.getElementById('log');
-fetch('https://raw.githubusercontent.com/Atakan-24/automation/main/data/activity_log.txt')
-  .then(r=>r.text())
-  .then(text=>{
-    div.innerHTML='';
-    text.trim().split('\n').forEach(line=>{const row=document.createElement('div');row.textContent=line;div.appendChild(row);});
-  })
-  .catch(()=>{div.textContent='Activity log unavailable.';});
-</script>
 </body>
 </html>
