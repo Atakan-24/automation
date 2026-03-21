@@ -3,21 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shin Zero Live</title>
+<title>Shin Zero Art</title>
 <style>
-body{margin:0;background:#000209;color:#f8f8ff;font-family:'Fira Code',monospace;}
-#page{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px;gap:24px;}
-#canvas{width:95vw;max-width:1040px;padding:48px;border-radius:36px;background:linear-gradient(180deg,#050b17,#01030c);box-shadow:0 40px 80px rgba(0,0,0,0.85);position:relative;overflow:hidden;}
-#glow{position:absolute;inset:-40px;background:radial-gradient(circle at 50% 20%,rgba(230,7,104,0.65),rgba(47,97,255,0.2) 55%,transparent 75%);filter:blur(14px);animation:throb 3s ease-in-out infinite;}
-@keyframes throb{0%{opacity:0.4;}50%{opacity:0.92;}100%{opacity:0.4;}}
-#art{font-size:10px;line-height:1.1;white-space:pre;margin:0;color:#fefefe;text-shadow:0 0 10px rgba(255,255,255,0.35);}
-#log-panel{width:90vw;max-width:980px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;}
-.card{background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.08);border-radius:18px;padding:16px;box-shadow:0 15px 30px rgba(0,0,0,0.45);}
-.card h2{margin:0 0 12px;font-size:16px;letter-spacing:2px;text-transform:uppercase;color:#fefefe;}
-.card div{max-height:200px;overflow:auto;font-size:12px;line-height:1.5;color:#dfe3ff;border-top:1px solid rgba(255,255,255,0.1);padding-top:8px;}
-.card div div{padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.08);}
-.card div div:last-child{border-bottom:none;}
-.sup{color:#7f88b1;font-size:11px;}
+body {margin:0;background:#01030c;color:#f8f8ff;font-family:'Fira Code',monospace;}
+#page {min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px;}
+#canvas {width:90vw;max-width:1080px;padding:40px;background:linear-gradient(180deg,#050a15,#01030c);border-radius:40px;box-shadow:0 50px 80px rgba(0,0,0,0.85);position:relative;overflow:hidden;}
+#glow {position:absolute;inset:-40px;background:radial-gradient(circle at 50% 20%,rgba(230,7,104,0.7),transparent 60%);filter:blur(14px);animation:throb 3s ease-in-out infinite;}
+@keyframes throb {0% {opacity:0.3;}50% {opacity:0.85;}100% {opacity:0.3;}}
+#art {font-size:9px;line-height:1.08;white-space:pre;letter-spacing:0;background:rgba(0,0,0,0.0);margin:0;color:#fefefe;text-shadow:0 0 12px rgba(255,255,255,0.4);}
 </style>
 </head>
 <body>
@@ -28,15 +21,7 @@ body{margin:0;background:#000209;color:#f8f8ff;font-family:'Fira Code',monospace
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣤⠶⣻⠝⠋⠠⠔⠛⠁⡀⠀⠈⢉⡙⠓⠶⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⢋⣴⡮⠓⠋⠀⠀⢄⠀⠀⠉⠢⣄⠀⠈⠁⠀⡀⠙⢶⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⢁⣔⠟⠁⠀⠀⠀⠀⠀⠈⡆⠀⠀⠀⠈⢦⡀⠀⠀⠘⢯⢢⠙⢦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡼⠃⠀⣿⠃⠀⠀⠀⠀⠀⠀⠀⠀⠸⠀⠀⠀⠀⠀⢳⣦⡀⠀⠀⢯⠀⠈⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣾⠆⡄⢠⢧⠀⣸⠀⠀⠀⠀⠀⠀⠀⢰⠀⣄⠀⠀⠀⠀⢳⡈⢶⡦⣿⣷⣿⢉⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣿⣯⣿⣁⡟⠈⠣⡇⠀⠀⢸⠀⠀⠀⠀⢸⡄⠘⡄⠀⠀⠀⠈⢿⢾⣿⣾⢾⠙⠻⣾⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣿⡿⣮⠇⢙⠷⢄⣸⡗⡆⠀⢘⠀⠀⠀⠀⢸⠧⠀⢣⠀⠀⠀⡀⡸⣿⣿⠘⡎⢆⠈⢳⣽⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⢠⡟⢻⢷⣄⠀⠀⠀⠀⠀⠀⣾⣳⡿⡸⢀⣿⠀⠀⢸⠙⠁⠀⠼⠀⠀⠀⠀⢸⣇⠠⡼⡤⠴⢋⣽⣱⢿⣧⠀⢳⠈⢧⠀⢻⣿⣧⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⢀⡿⣠⡣⠃⣿⠃⠀⠀⠀⠀⣸⣳⣿⠇⣇⢸⣿⢸⣠⠼⠀⠀⠀⡇⠀⡀⠉⠒⣾⢾⣆⢟⣳⡶⠓⠶⠿⢼⣿⣇⠈⡇⠘⢆⠈⢿⡘⣷⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠈⢷⣍⣤⡶⣿⡄⠀⠀⠀⢠⣿⠃⣿⠀⡏⢸⣿⣿⠀⢸⠀⠀⢠⡗⢀⠇⠀⢠⡟⠀⠻⣾⣿⠀⠀⠀⠀⡏⣿⣿⡀⢹⡀⠈⢦⠈⢷⣿⡆⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢁⣤⣄⠁⠀⠀⠀⣼⡏⢰⣟⠀⣇⠘⣿⣿⣾⣾⣆⢀⣾⠃⣼⢠⣶⣿⣭⣷⣶⣾⣿⣤⠀⠀⠀⡇⡯⣍⣧⠀⣷⠄⠈⢳⡀⢻⡁⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠺⣿⡿⠀⠀⠀⠀⡿⢀⣾⣧⠀⡗⡄⢿⣿⡙⣽⣿⣟⠛⠚⠛⠙⠉⢹⣿⣿⣦⠀⢸⡿⠀⠀⠀⢰⡯⣌⢻⡀⢸⢠⢰⡄⠹⡷⣿⣦⣤⠤⣶⡇⠀⠀⠀</pre>
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡼⠃⠀⣿⠃⠀⠀⠀⠀⠀⠀⠀⠀⠸⠀⠀⠀⠀⠀⢳⣦⡀⠀⠀⢯⠀⠈⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀</pre>
   </div>
 </div>
 </body>
