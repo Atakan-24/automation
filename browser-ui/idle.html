@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shin Zero Idle</title>
+<style>
+body {margin:0;background:#01030c;color:#f8f8ff;font-family:'Fira Code',monospace;}
+#page {min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px;}
+#canvas {width:94vw;max-width:980px;padding:32px;border-radius:28px;background:linear-gradient(180deg,#05080f,#01030c);border:2px solid rgba(255,255,255,0.15);box-shadow:0 30px 50px rgba(0,0,0,0.8);}
+#title {text-align:center;margin-bottom:8px;font-size:20px;letter-spacing:6px;color:#9cc0ff;}
+#art {font-size:10px;line-height:1;white-space:pre;margin:0;color:#eef6ff;}
+#caption {margin-top:12px;font-size:12px;text-align:center;color:#a4a8c6;}
+#log-panel {width:94vw;max-width:980px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:18px;padding:18px;box-shadow:0 12px 30px rgba(0,0,0,0.35);}
+#log-panel h2 {margin:0 0 8px;font-size:16px;color:#fefefe;letter-spacing:2px;}
+#log {max-height:260px;overflow:auto;font-size:13px;line-height:1.5;color:#dfe3ff;}
+#log div {padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.1);} 
+#log div:last-child {border-bottom:none;}
+</style>
+</head>
+<body>
+<div id="page">
+  <div id="canvas">
+    <div id="title">SHIN ZERO IDLE</div>
+    <pre id="art">⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⠿⠛⠛⠛⠛⠻⠿⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿</pre>
+    <div id="caption">Live Idle Display – ASCII Art + chronologische Logs.</div>
+  </div>
+  <div id="log-panel">
+    <h2>Shin Zero Logbook</h2>
+    <div id="log"></div>
+  </div>
+</div>
+<script>
+const logEl=document.getElementById('log');
+const entries=[
+  '2026-03-20T21:00:00 – Beobachte DayTasks (Tetris + Kaguya UI)',
+  '2026-03-20T21:10:00 – Idle-Art aktualisiert und Logbook eingebaut',
+  '2026-03-20T21:20:00 – Status-Log bereitgestellt für Echtzeit-Überblick'
+];
+entries.reverse().forEach(text=>{const div=document.createElement('div');const [time,msg]=text.split(' – ');div.innerHTML=`<span style="font-size:11px;color:#8ca0ff;">${time}</span><br>${msg}`;logEl.appendChild(div);});
+</script>
+</body>
+</html>
