@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Shin Zero Live</title>
 <style>
 body {margin:0;background:#000209;color:#f8f8ff;font-family:'Fira Code',monospace;}
-#page {min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px;gap:18px;}
-#log-panel {width:90vw;max-width:1100px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.08);border-radius:20px;padding:18px;box-shadow:0 20px 40px rgba(0,0,0,0.45);}
-#log-panel h2 {margin:0 0 8px;font-size:16px;letter-spacing:3px;text-transform:uppercase;color:#fefefe;}
-#log {max-height:260px;overflow:auto;font-size:12px;line-height:1.5;color:#dfe3ff;}
-#log div {padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.08);} 
+#page {min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px;gap:16px;}
+#log-panel {width:90vw;max-width:1100px;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.08);border-radius:20px;padding:18px;box-shadow:0 20px 40px rgba(0,0,0,0.45);position:relative;}
+#log-panel h2 {margin:0 0 12px;font-size:16px;letter-spacing:3px;text-transform:uppercase;color:#fefefe;}
+#live-indicator {position:absolute;top:18px;right:18px;padding:4px 10px;border-radius:12px;border:1px solid rgba(255,255,255,0.3);font-size:11px;text-transform:uppercase;letter-spacing:1px;}
+#live-status {font-weight:bold;}
+#log {max-height:260px;overflow:auto;font-size:12px;line-height:1.6;color:#dfe3ff;display:grid;gap:6px;}
+#log div {padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);}
 #log div:last-child {border-bottom:none;}
-.sup {color:#7f88b1;font-size:10px;}
-#canvas {width:95vw;max-width:1040px;padding:48px;border-radius:36px;background:linear-gradient(180deg,#050b17,#01030c);box-shadow:0 40px 80px rgba(0,0,0,0.85);position:relative;}
+.sup {color:#7f88b1;font-size:11px;}
+#canvas {width:95vw;max-width:1040px;padding:40px;border-radius:36px;background:linear-gradient(180deg,#050b17,#01030c);box-shadow:0 40px 80px rgba(0,0,0,0.85);}
 #art {margin:0;font-size:10px;line-height:1.05;white-space:pre;color:#fefefe;text-shadow:0 0 10px rgba(255,255,255,0.35);}
 </style>
 </head>
@@ -21,14 +23,18 @@ body {margin:0;background:#000209;color:#f8f8ff;font-family:'Fira Code',monospac
 <div id="page">
   <div id="log-panel">
     <h2>Live Activity</h2>
+    <div id="live-indicator">Live: <span id="live-status">loading</span></div>
     <div id="log">Loading live updates…</div>
   </div>
   <div id="canvas">
-    <pre id="art">⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⠿⠛⠛⠛⠛⠻⠿⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿</pre>
+    <pre id="art">⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⣤⣤⣤⣤⣄⣀⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣤⠶⣻⠝⠋⠠⠔⠛⠁⡀⠀⠈⢉⡙⠓⠶⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+... (rest of ASCII art) ...</pre>
   </div>
 </div>
 <script>
 const logDiv=document.getElementById('log');
+const statusSpan=document.getElementById('live-status');
 const logUrl='https://raw.githubusercontent.com/Atakan-24/automation/main/data/activity_log.txt';
 function refreshLog(){
   fetch(logUrl)
@@ -40,8 +46,11 @@ function refreshLog(){
         entry.textContent=line;
         logDiv.appendChild(entry);
       });
+      statusSpan.textContent='active';
+      statusSpan.style.color='#7dff7d';
+      setTimeout(()=>{statusSpan.textContent='monitoring';statusSpan.style.color='#7f88b1';},5000);
     })
-    .catch(()=>{logDiv.textContent='Unable to load live updates.';});
+    .catch(()=>{logDiv.textContent='Unable to load live updates.';statusSpan.textContent='offline';statusSpan.style.color='#ff7575';});
 }
 refreshLog();
 setInterval(refreshLog,10000);
