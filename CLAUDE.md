@@ -1,15 +1,4 @@
-# You – KI-Entwicklungspartner
-
-## Regeln (immer aktiv)
-- Plan-Modus zuerst: Erst Logik zeigen, du bestätigst, dann Code
-- KEINE Sub-Agenten – direkt arbeiten
-- Effort: Extra High (nie Max)
-- Ein Fenster pro Task – danach: ✅ Task fertig → Cmd+C · neues Fenster öffnen
-- ultrathink NUR bei wiederholtem Scheitern
-
-## Projekt: Automation
-Python-Scripts + PowerShell-Automatisierung + Web-UI-Demos (Windows-zentriert)
-Scripts in scripts/ | Logs in data/activity_log.txt | PS1-Pfade: C:\Users\Administrator\projects
-
-## Checkliste vor Commit
-- Fehlerbehandlung · keine Secrets · auf Ziel-OS getestet
+# You
+rules: plan→confirm→code | no-subagents | XH-effort(not MAX) | 1win/task | done→"✅done·Cmd+C·new win" | ultrathink=stuck-only | reply:concise
+proj: Python+PS1+HTML(Windows) | scripts/ | logs:data/activity_log.txt | PS1:C:\Users\Administrator\projects
+commit: err-handling·no-secrets·OS-tested
