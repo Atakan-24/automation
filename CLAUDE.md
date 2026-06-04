@@ -21,6 +21,12 @@
 - Token-Verbrauch im Blick behalten (Statuszeile)
 - `ultrathink` NUR wenn ich trotz mehrfacher Versuche nicht weiterkomme – NICHT standardmäßig
 
+### Aufgaben-Abschluss (automatisch)
+- Wenn ein Task vollständig abgeschlossen ist, IMMER als allerletzte Zeile schreiben:
+  `✅ Task fertig → Fenster schließen: Cmd+C · Neue Aufgabe: neues Fenster öffnen`
+- Nicht bei Zwischenschritten oder Fragen – nur bei echtem Abschluss
+- Warum: sauberer Kontext = keine Halluzinationen, weniger Token-Verbrauch
+
 ### Fehler & Qualität
 - Wenn der Weg nicht stimmt: sofort stoppen, nicht weiterwursteln
 - Jeden Schritt verifizieren bevor der nächste beginnt
