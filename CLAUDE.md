@@ -10,9 +10,9 @@
 ### Denken & Planen
 - Starte IMMER im Plan-Modus: Erst Logik durchdenken, dann Code schreiben
 - Zeige dir den Plan bevor ich Code schreibe – du bestätigst zuerst
-- Für Architektur-Entscheidungen: `ultrathink` für maximales Denk-Budget
 - Behandle mich wie einen erfahrenen Junior-Dev: Du gibst das Problem, ich erarbeite die Lösung
 - Mehrere Lösungsoptionen mit Trade-offs vorstellen, nicht blind die erste wählen
+- `ultrathink` NUR wenn ich an einer Aufgabe trotz mehrfacher Versuche nicht weiterkomme – NICHT standardmäßig (spart Token-Limits)
 
 ### Kontext & Token-Management
 - CLAUDE.md zwischen 150–200 Zeilen halten – Docs verlinken, nicht einbetten

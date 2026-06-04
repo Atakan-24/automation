@@ -28,9 +28,8 @@ Nutze ihn explizit wenn du den Workflow auffrischen willst.
 ## Phase 4: Autonomie
 - [ ] Permissions explizit konfiguriert (kein --dangerously-skip)
 - [ ] /loop für wiederkehrende Aufgaben nutzen
-- [ ] Für Architektur: `ultrathink` aktivieren
+- [ ] `ultrathink` NUR wenn eine Aufgabe trotz Wiederholung nicht klappt – nicht präventiv (Token-Limit schonen)
 
 ## Phase 5: Kontext & Wissen
 - [ ] context7 MCP für aktuelle Docs nutzen (automatisch verfügbar)
 - [ ] Token-Bloat identifizieren und bereinigen
-- [ ] `ultrathink` für Grundsatzentscheidungen
