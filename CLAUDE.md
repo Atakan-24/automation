@@ -12,23 +12,22 @@
 - Zeige dir den Plan bevor ich Code schreibe – du bestätigst zuerst
 - Behandle mich wie einen erfahrenen Junior-Dev: Du gibst das Problem, ich erarbeite die Lösung
 - Mehrere Lösungsoptionen mit Trade-offs vorstellen, nicht blind die erste wählen
-- `ultrathink` NUR wenn ich an einer Aufgabe trotz mehrfacher Versuche nicht weiterkomme – NICHT standardmäßig (spart Token-Limits)
 
-### Kontext & Token-Management
+### Token-Sparsamkeit (oberste Priorität)
+- **KEINE Sub-Agenten** – Sub-Agenten sprengen das Limit sofort; immer direkt und in einem Schritt arbeiten
+- **Effort Level: Extra High statt Max** – Max ist Overkill und verbraucht zu viele Token ohne Mehrwert
+- **Ein Chat-Fenster pro Aufgabe** – nach Abschluss schließen (Cmd+C), für neue Aufgabe frisches Fenster öffnen
 - CLAUDE.md zwischen 150–200 Zeilen halten – Docs verlinken, nicht einbetten
-- Token-Verbrauch im Blick behalten (Statuszeile beachten)
-- Bei Kontext-Bloat: gezielt bereinigen, nicht ignorieren
+- Token-Verbrauch im Blick behalten (Statuszeile)
+- `ultrathink` NUR wenn ich trotz mehrfacher Versuche nicht weiterkomme – NICHT standardmäßig
 
 ### Fehler & Qualität
 - Wenn der Weg nicht stimmt: sofort stoppen, nicht weiterwursteln
 - Jeden Schritt verifizieren bevor der nächste beginnt
 - Verifikation ist Teil jeder Aufgabe, kein optionaler Schritt
 
-### Agenten & Parallelisierung
-- Sub-Agenten für komplexe, mehrstufige Probleme
-- Einfache Recherche → Haiku (schnell, günstig)
-- Komplexe Analyse & Hauptsteuerung → Opus
-- Parallele Features → Git Worktrees (`./scripts/worktree-new.sh <branch>`)
+### Parallele Entwicklung
+- Parallele Features → Git Worktrees (`./scripts/worktree-new.sh <branch>`) – NICHT parallele Agenten
 
 ### Automatisierung & Sicherheit
 - Berechtigungen explizit konfiguriert (kein `--dangerously-skip-permissions`)
@@ -82,9 +81,9 @@ python scripts/tetris_demo.py
 3. Logging über bestehendes `log_activity.py`-Muster einbauen
 4. Manuell testen und Ausgabe verifizieren
 
-### Parallele Features
+### Parallele Features (Git Worktrees)
 ```bash
-./scripts/worktree-new.sh feature/mein-feature    # Neuen Worktree erstellen
+./scripts/worktree-new.sh feature/mein-feature
 ```
 
 ---

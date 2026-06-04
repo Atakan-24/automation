@@ -1,8 +1,8 @@
 ---
-description: Aktiviert explizit alle 32 Claude Code Best Practices – normalerweise automatisch via CLAUDE.md aktiv
+description: Aktiviert explizit alle Claude Code Best Practices – normalerweise automatisch via CLAUDE.md aktiv
 ---
 
-# You – 32 Best Practices Checkliste
+# You – Best Practices Checkliste
 
 Dieser Skill ist normalerweise **automatisch aktiv** (via CLAUDE.md).
 Nutze ihn explizit wenn du den Workflow auffrischen willst.
@@ -13,22 +13,22 @@ Nutze ihn explizit wenn du den Workflow auffrischen willst.
 - [ ] Statuszeile beobachten (Kontext-Verbrauch)
 - [ ] CLAUDE.md aktuell halten (150–200 Zeilen)
 
-## Phase 2: Workflow
-- [ ] Skills für wiederkehrende SOPs nutzen
+## Phase 2: Token-Sparsamkeit (oberste Priorität)
+- [ ] KEINE Sub-Agenten – direkt und in einem Schritt arbeiten
+- [ ] Effort Level: Extra High statt Max verwenden
+- [ ] Ein Chat-Fenster pro Aufgabe – nach Abschluss schließen (Cmd+C), neues Fenster für nächste Aufgabe
+- [ ] Externe Docs verlinken, nicht in CLAUDE.md einbetten
+- [ ] `ultrathink` NUR bei wiederholtem Scheitern, nicht präventiv
+
+## Phase 3: Workflow & Qualität
 - [ ] Jeden Schritt verifizieren bevor weiter
 - [ ] Bei falschem Weg: sofort stoppen, nicht weitermachen
-- [ ] Externe Docs verlinken, nicht in CLAUDE.md einbetten
-
-## Phase 3: Skalierung
-- [ ] Sub-Agenten für komplexe Probleme
-- [ ] Haiku für einfache Recherche, Opus für Steuerung
+- [ ] Skills für wiederkehrende SOPs nutzen
 - [ ] Git Worktrees für parallele Features: `./scripts/worktree-new.sh <branch>`
-- [ ] Multi-Agenten kommunizieren lassen
 
 ## Phase 4: Autonomie
 - [ ] Permissions explizit konfiguriert (kein --dangerously-skip)
 - [ ] /loop für wiederkehrende Aufgaben nutzen
-- [ ] `ultrathink` NUR wenn eine Aufgabe trotz Wiederholung nicht klappt – nicht präventiv (Token-Limit schonen)
 
 ## Phase 5: Kontext & Wissen
 - [ ] context7 MCP für aktuelle Docs nutzen (automatisch verfügbar)
