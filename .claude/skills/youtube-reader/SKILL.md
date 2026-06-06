@@ -111,11 +111,46 @@ def parse_vtt(path: str) -> str:
     return "\n".join(deduped)
 ```
 
-#### If both methods fail
+#### Method C — yt-dlp with cookies (for cloud environments)
+
+Cloud environments (AWS, GCP, Azure) have their IPs blocked by YouTube. If Methods A and B fail with IP-block or bot-detection errors, ask the user for a `cookies.txt` file:
+
+> "YouTube blockiert direkte Anfragen aus Cloud-Servern. Bitte exportiere deine YouTube-Cookies:
+> 1. Installiere die Browser-Extension **'Get cookies.txt LOCALLY'**
+> 2. Gehe auf youtube.com (eingeloggt)
+> 3. Exportiere die Cookies → schick mir den Dateiinhalt
+> Oder: Öffne das Video → `...` → **'Transkript öffnen'** → kopiere den Text direkt hier rein."
+
+Once cookies are provided, save them to `/tmp/yt_cookies.txt` and retry:
+
+```bash
+yt-dlp --no-check-certificate --cookies /tmp/yt_cookies.txt \
+  --skip-download --write-auto-sub --write-sub --sub-langs "de,en" \
+  --sub-format vtt --output "/tmp/yt_%(id)s" \
+  "https://www.youtube.com/watch?v=VIDEO_ID" 2>&1
+```
+
+Also works with youtube-transcript-api using a custom http_client with cookies:
+
+```python
+import requests
+from youtube_transcript_api import YouTubeTranscriptApi
+
+session = requests.Session()
+# Load cookies from Netscape cookies.txt
+import http.cookiejar
+jar = http.cookiejar.MozillaCookieJar('/tmp/yt_cookies.txt')
+jar.load()
+session.cookies = jar
+
+ytt = YouTubeTranscriptApi(http_client=session)
+```
+
+#### If all methods fail (including cookies)
 
 Tell the user the video has no available captions and suggest:
 - Enabling auto-generated captions on the video
-- Providing a manual transcript
+- Providing a manual transcript by copying from YouTube's built-in transcript viewer (`...` → "Transkript öffnen")
 - Trying a different video
 
 ### 3. Fetch Video Metadata (optional but helpful)
