@@ -12,7 +12,7 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        200,
+        180,
         400
       ],
       "webhookId": "vapi-call-results"
@@ -31,15 +31,27 @@
               }
             }
           ]
-        },
-        "options": {}
+        }
       },
       "id": "node-filter",
       "name": "Only End-of-Call Events",
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2,
       "position": [
-        420,
+        380,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $json.body?.message || {};\nconst call = msg.call || {};\nconst vars = call.assistantOverrides?.variableValues || {};\nconst analysis = msg.analysis || {};\nconst structured = analysis.structuredData || {};\n\n// Extract outcome: try structuredData first, then infer from endedReason\nlet outcome = structured.outcome || '';\nif (!outcome) {\n  const reason = msg.endedReason || '';\n  const dur = msg.durationSeconds || 0;\n  if (reason.includes('voicemail') || reason.includes('machine')) outcome = 'voicemail';\n  else if (reason.includes('no-answer') || dur < 10) outcome = 'no_answer';\n  else outcome = 'completed';\n}\n\n// Check if customer asked to be removed\nconst transcript = (msg.transcript || '').toLowerCase();\nconst removed = transcript.includes('remove me') || transcript.includes('do not call') || outcome === 'removed_from_list';\nif (removed) outcome = 'removed_from_list';\n\nreturn [{ json: {\n  call_id: call.id || '',\n  phone: (call.customer?.number || '').replace(/\\D/g,'').replace(/^1/,''),\n  business_name: call.customer?.name || vars.business_name || '',\n  industry: vars.industry || '',\n  city: vars.city || '',\n  rating: vars.rating || '',\n  reviews_count: vars.reviews_count || '',\n  duration_seconds: msg.durationSeconds || 0,\n  ended_reason: msg.endedReason || '',\n  outcome: outcome,\n  removed_from_list: removed,\n  summary: analysis.summary || '',\n  transcript: (msg.transcript || '').substring(0, 2000),\n  timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "node-extract",
+      "name": "Extract Call Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        580,
         400
       ]
     },
@@ -59,33 +71,106 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "call_id": "={{ $json.body?.message?.call?.id }}",
-            "phone": "={{ $json.body?.message?.call?.customer?.number }}",
-            "business_name": "={{ $json.body?.message?.call?.customer?.name }}",
-            "duration_seconds": "={{ $json.body?.message?.durationSeconds }}",
-            "ended_reason": "={{ $json.body?.message?.endedReason }}",
-            "summary": "={{ $json.body?.message?.summary }}",
-            "transcript": "={{ $json.body?.message?.transcript }}",
-            "timestamp": "={{ new Date().toISOString() }}"
+            "call_id": "={{ $json.call_id }}",
+            "phone": "={{ $json.phone }}",
+            "business_name": "={{ $json.business_name }}",
+            "industry": "={{ $json.industry }}",
+            "city": "={{ $json.city }}",
+            "rating": "={{ $json.rating }}",
+            "reviews_count": "={{ $json.reviews_count }}",
+            "duration_seconds": "={{ $json.duration_seconds }}",
+            "ended_reason": "={{ $json.ended_reason }}",
+            "outcome": "={{ $json.outcome }}",
+            "summary": "={{ $json.summary }}",
+            "transcript": "={{ $json.transcript }}",
+            "timestamp": "={{ $json.timestamp }}"
           },
           "schema": []
         },
-        "options": {},
-        "authentication": "serviceAccount"
+        "options": {}
       },
       "id": "node-save",
       "name": "Save to Call Results Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
       "position": [
-        640,
-        400
+        780,
+        300
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "f3kxGuGdAhr7J8iI",
+          "name": "Google Sheets Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "check-removed",
+              "leftValue": "={{ $json.removed_from_list }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "node-check-removed",
+      "name": "Asked to be Removed?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        780,
+        500
       ]
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "{ \"status\": \"received\" }",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Blacklist",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "phone": "={{ $json.phone }}",
+            "business_name": "={{ $json.business_name }}",
+            "reason": "removed_from_list",
+            "added_at": "={{ $json.timestamp }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "node-blacklist",
+      "name": "Add to Blacklist",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        980,
+        500
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "f3kxGuGdAhr7J8iI",
+          "name": "Google Sheets Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
         "options": {}
       },
       "id": "node-respond",
@@ -93,8 +178,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        860,
-        400
+        980,
+        300
       ]
     }
   ],
@@ -114,7 +199,23 @@
       "main": [
         [
           {
+            "node": "Extract Call Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Call Data": {
+      "main": [
+        [
+          {
             "node": "Save to Call Results Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Asked to be Removed?",
             "type": "main",
             "index": 0
           }
@@ -131,10 +232,20 @@
           }
         ]
       ]
+    },
+    "Asked to be Removed?": {
+      "main": [
+        [
+          {
+            "node": "Add to Blacklist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "executionOrder": "v1"
-  },
-  "tags": []
+  }
 }

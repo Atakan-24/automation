@@ -1,0 +1,309 @@
+{
+  "name": "Team Gold \u2014 Weekly Analytics & Auto-Optimize",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "ana-schedule",
+      "name": "Every Monday 8am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        180,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Call Results",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "ana-read-results",
+      "name": "Read Call Results",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        380,
+        300
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "f3kxGuGdAhr7J8iI",
+          "name": "Google Sheets Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "ana-read-leads",
+      "name": "Read Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        380,
+        500
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "f3kxGuGdAhr7J8iI",
+          "name": "Google Sheets Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $('Read Call Results').all().map(i => i.json).filter(r => r.call_id);\nconst leads = $('Read Leads').all().map(i => i.json).filter(l => l.phone);\n\nif (results.length === 0) {\n  return [{ json: { status: 'no_data', message: 'No calls yet', total_calls: 0 } }];\n}\n\n// Calculate stats by industry\nconst byIndustry = {};\nconst byCity = {};\nconst byRating = { 'high (4.5+)': {total:0,booked:0}, 'mid (3.5-4.5)': {total:0,booked:0}, 'low (<3.5)': {total:0,booked:0} };\n\nfor (const r of results) {\n  if (!r.industry) continue;\n  const ind = r.industry;\n  const city = r.city || 'unknown';\n  const isBooked = r.outcome === 'meeting_booked';\n  const rating = parseFloat(r.rating) || 0;\n\n  if (!byIndustry[ind]) byIndustry[ind] = {total:0, booked:0};\n  byIndustry[ind].total++;\n  if (isBooked) byIndustry[ind].booked++;\n\n  if (!byCity[city]) byCity[city] = {total:0, booked:0};\n  byCity[city].total++;\n  if (isBooked) byCity[city].booked++;\n\n  const bucket = rating >= 4.5 ? 'high (4.5+)' : rating >= 3.5 ? 'mid (3.5-4.5)' : 'low (<3.5)';\n  byRating[bucket].total++;\n  if (isBooked) byRating[bucket].booked++;\n}\n\nconst rate = (b, t) => t > 0 ? (b/t*100).toFixed(1) + '%' : '0%';\n\nconst industryStats = Object.entries(byIndustry)\n  .map(([k,v]) => ({name:k, total:v.total, booked:v.booked, rate:rate(v.booked,v.total)}))\n  .sort((a,b) => parseFloat(b.rate)-parseFloat(a.rate));\n\nconst cityStats = Object.entries(byCity)\n  .map(([k,v]) => ({name:k, total:v.total, booked:v.booked, rate:rate(v.booked,v.total)}))\n  .sort((a,b) => parseFloat(b.rate)-parseFloat(a.rate));\n\n// Best performers (min 3 calls)\nconst DEFAULT_INDUSTRIES = 'plumber,electrician,hvac contractor,roofer,painter';\nconst DEFAULT_CITIES = 'Austin TX,Houston TX,Dallas TX,Phoenix AZ,Las Vegas NV';\n\nconst bestIndustries = industryStats.filter(x => x.total >= 3).slice(0,5).map(x=>x.name).join(',');\nconst bestCities = cityStats.filter(x => x.total >= 3).slice(0,5).map(x=>x.name).join(',');\n\nconst totalCalls = results.length;\nconst totalBooked = results.filter(r => r.outcome==='meeting_booked').length;\nconst totalVoicemail = results.filter(r => r.outcome==='voicemail').length;\nconst totalNoAnswer = results.filter(r => r.outcome==='no_answer').length;\nconst totalRemoved = results.filter(r => r.outcome==='removed_from_list').length;\n\nreturn [{ json: {\n  total_calls: totalCalls,\n  total_booked: totalBooked,\n  total_voicemail: totalVoicemail,\n  total_no_answer: totalNoAnswer,\n  total_removed: totalRemoved,\n  overall_rate: rate(totalBooked, totalCalls),\n  best_industries: bestIndustries || DEFAULT_INDUSTRIES,\n  best_cities: bestCities || DEFAULT_CITIES,\n  industry_stats: JSON.stringify(industryStats),\n  city_stats: JSON.stringify(cityStats),\n  rating_stats: JSON.stringify(Object.entries(byRating).map(([k,v])=>({bucket:k,...v,rate:rate(v.booked,v.total)}))),\n  week: new Date().toISOString().split('T')[0],\n  data_driven: (bestIndustries.length > 0 && bestCities.length > 0) ? 'yes' : 'not yet (need 3+ calls per category)'\n} }];"
+      },
+      "id": "ana-analyze",
+      "name": "Analyze Performance",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        580,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Stats",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "week": "={{ $json.week }}",
+            "total_calls": "={{ $json.total_calls }}",
+            "booked": "={{ $json.total_booked }}",
+            "conversion_rate": "={{ $json.overall_rate }}",
+            "voicemail": "={{ $json.total_voicemail }}",
+            "no_answer": "={{ $json.total_no_answer }}",
+            "removed": "={{ $json.total_removed }}",
+            "best_industries": "={{ $json.best_industries }}",
+            "best_cities": "={{ $json.best_cities }}",
+            "industry_breakdown": "={{ $json.industry_stats }}",
+            "city_breakdown": "={{ $json.city_stats }}",
+            "data_driven": "={{ $json.data_driven }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "ana-save-stats",
+      "name": "Save Weekly Stats",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        780,
+        300
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "f3kxGuGdAhr7J8iI",
+          "name": "Google Sheets Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Config tab rows from analysis results\nconst d = $('Analyze Performance').item.json;\nreturn [\n  { json: { key: 'target_industries', value: d.best_industries, updated_at: d.week } },\n  { json: { key: 'target_cities', value: d.best_cities, updated_at: d.week } },\n  { json: { key: 'overall_rate', value: d.overall_rate, updated_at: d.week } },\n  { json: { key: 'total_calls', value: String(d.total_calls), updated_at: d.week } },\n  { json: { key: 'data_driven', value: d.data_driven, updated_at: d.week } }\n];"
+      },
+      "id": "ana-build-config",
+      "name": "Build Config Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "clear",
+        "documentId": {
+          "__rl": true,
+          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "ana-clear-config",
+      "name": "Clear Config Tab",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        980,
+        500
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "f3kxGuGdAhr7J8iI",
+          "name": "Google Sheets Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "key": "={{ $json.key }}",
+            "value": "={{ $json.value }}",
+            "updated_at": "={{ $json.updated_at }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "ana-write-config",
+      "name": "Write Config Tab",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1180,
+        500
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "f3kxGuGdAhr7J8iI",
+          "name": "Google Sheets Service Account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every Monday 8am": {
+      "main": [
+        [
+          {
+            "node": "Read Call Results",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Call Results": {
+      "main": [
+        [
+          {
+            "node": "Analyze Performance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Leads": {
+      "main": [
+        [
+          {
+            "node": "Analyze Performance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Performance": {
+      "main": [
+        [
+          {
+            "node": "Save Weekly Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Config Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Config Rows": {
+      "main": [
+        [
+          {
+            "node": "Clear Config Tab",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear Config Tab": {
+      "main": [
+        [
+          {
+            "node": "Write Config Tab",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

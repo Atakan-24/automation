@@ -1,5 +1,11 @@
 {
+  "updatedAt": "2026-06-09T17:21:40.644Z",
+  "createdAt": "2026-06-09T15:22:11.868Z",
+  "id": "Iu3JXQxPJNQI45kx",
   "name": "Team Gold \u2014 Full Pipeline (Leads \u2192 Draft \u2192 Call \u2192 Track)",
+  "description": null,
+  "active": true,
+  "isArchived": false,
   "nodes": [
     {
       "parameters": {
@@ -23,7 +29,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CONFIGURE THESE\nconst INDUSTRIES = ['plumber', 'electrician', 'hvac contractor', 'roofer', 'painter'];\nconst CITIES = ['Austin TX', 'Houston TX', 'Dallas TX', 'Phoenix AZ', 'Las Vegas NV'];\nconst LEADS_PER_RUN = 10;\n\n// Pick a random city and industry for this run\nconst city = CITIES[Math.floor(Math.random() * CITIES.length)];\nconst industry = INDUSTRIES[Math.floor(Math.random() * INDUSTRIES.length)];\n\nreturn [{ json: { city, industry, leads_per_run: LEADS_PER_RUN, search_query: industry + ' in ' + city } }];"
+        "jsCode": "// Read dynamic config from Google Sheets Config tab\n// Falls back to defaults if Config tab is empty\nconst configRows = $('Read Config').all().map(i => i.json);\nconst cfg = {};\nfor (const row of configRows) {\n  if (row.key && row.value) cfg[row.key] = row.value;\n}\n\nconst INDUSTRIES = cfg.target_industries\n  ? cfg.target_industries.split(',').map(s => s.trim())\n  : ['plumber', 'electrician', 'hvac contractor', 'roofer', 'painter'];\n\nconst CITIES = cfg.target_cities\n  ? cfg.target_cities.split(',').map(s => s.trim())\n  : ['Austin TX', 'Houston TX', 'Dallas TX', 'Phoenix AZ', 'Las Vegas NV'];\n\nconst LEADS_PER_RUN = parseInt(cfg.leads_per_run || '10');\n\nconst city = CITIES[Math.floor(Math.random() * CITIES.length)];\nconst industry = INDUSTRIES[Math.floor(Math.random() * INDUSTRIES.length)];\n\nreturn [{ json: { city, industry, leads_per_run: LEADS_PER_RUN, search_query: industry + ' in ' + city } }];"
       },
       "id": "node-config",
       "name": "Set Target City & Industry",
@@ -47,7 +53,7 @@
             },
             {
               "name": "key",
-              "value": "CONFIGURED_IN_N8N"
+              "value": "AIzaSyCndiGA-NcAxAu3zcyZSSiEUPkJRK4D91o"
             },
             {
               "name": "type",
@@ -84,7 +90,7 @@
         "operation": "read",
         "documentId": {
           "__rl": true,
-          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
+          "value": "CONFIGURED_IN_N8N",
           "mode": "id"
         },
         "sheetName": {
@@ -102,11 +108,17 @@
       "position": [
         980,
         300
-      ]
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "f3kxGuGdAhr7J8iI",
+          "name": "Google Sheets (Service Account)"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const allItems = $input.all();\nconst newLeads = allItems.filter(item =>\n  item.json && item.json.place_id && item.json.industry\n);\n\nif (newLeads.length === 0) return [];\n\nlet existingRows = [];\ntry {\n  existingRows = $('Read Existing Leads').all().map(i => i.json);\n} catch(e) { /* sheet empty */ }\n\nconst result = [];\nfor (const leadItem of newLeads) {\n  const newLead = leadItem.json;\n  const alreadyContacted = existingRows.some(row =>\n    (row.phone && row.phone === newLead.phone) ||\n    (row.place_id && row.place_id === newLead.place_id)\n  );\n  if (!alreadyContacted) result.push({ json: newLead });\n}\nreturn result;"
+        "jsCode": "// Receive items from both Filter AND Read Existing Leads\n// Only process items that are actual new leads (have place_id + industry)\nconst allItems = $input.all();\nconst newLeads = allItems.filter(item =>\n  item.json && item.json.place_id && item.json.industry\n);\n\nif (newLeads.length === 0) return [];\n\nlet existingRows = [];\ntry {\n  existingRows = $('Read Existing Leads').all().map(i => i.json);\n} catch(e) { /* sheet empty or not yet run */ }\n\nconst result = [];\nfor (const leadItem of newLeads) {\n  const newLead = leadItem.json;\n  const alreadyContacted = existingRows.some(row =>\n    (row.phone && row.phone === newLead.phone) ||\n    (row.place_id && row.place_id === newLead.place_id)\n  );\n  if (!alreadyContacted) {\n    result.push({ json: newLead });\n  }\n}\n\nreturn result;"
       },
       "id": "node-dedup",
       "name": "Skip If Already Called",
@@ -134,7 +146,7 @@
             },
             {
               "name": "key",
-              "value": "CONFIGURED_IN_N8N"
+              "value": "AIzaSyCndiGA-NcAxAu3zcyZSSiEUPkJRK4D91o"
             }
           ]
         },
@@ -151,7 +163,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const lead = $('Skip If Already Called').item.json;\nconst details = $input.item.json.result || {};\n\nconst rawPhone = details.formatted_phone_number || lead.phone || '';\nconst phone = rawPhone.replace(/\\D/g, '').replace(/^1/, '');\n\nif (!phone || phone.length < 10) return [];\n\nconst rating = details.rating || lead.rating || 0;\nconst reviews_count = details.user_ratings_total || lead.reviews_count || 0;\nconst reviews = details.reviews || [];\nconst top_review = reviews.length > 0\n  ? reviews[0].text.substring(0, 120).replace(/\\n/g, ' ')\n  : '';\nconst is_open = details.opening_hours?.open_now;\nconst hours_note = is_open === true ? 'currently open' : is_open === false ? 'currently closed' : '';\n\nconst base = 'https://teamgoldllc.de/preview';\nconst params = new URLSearchParams({ name: lead.business_name, type: lead.industry, city: lead.city, phone: phone });\nconst preview_url = base + '?' + params.toString();\n\nlet wa_message;\nif (reviews_count > 0) {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nYou have ${reviews_count} reviews on Google with a ${rating}\u2b50 rating \u2014 clearly doing great work. But we noticed you don't have a website yet.\\n\\nWe put together a free website preview for ${lead.industry}s in ${lead.city}:\\n${preview_url}\\n\\nBook a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n} else {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nWe noticed you don't have a website yet \u2014 you're missing out on customers searching for ${lead.industry}s in ${lead.city} on Google.\\n\\nWe put together a free website preview for you:\\n${preview_url}\\n\\nBook a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n}\n\nreturn [{ json: { ...lead, phone, rating, reviews_count, top_review, hours_note, preview_url, wa_message } }];"
+        "jsCode": "const lead = $('Skip If Already Called').item.json;\nconst details = $input.item.json.result || {};\n\n// Get phone from Place Details, normalize to 10 digits\nconst rawPhone = details.formatted_phone_number || lead.phone || '';\nconst phone = rawPhone.replace(/\\D/g, '').replace(/^1/, '');\n\n// Skip lead if no valid phone\nif (!phone || phone.length < 10) return [];\n\nconst rating = details.rating || lead.rating || 0;\nconst reviews_count = details.user_ratings_total || lead.reviews_count || 0;\nconst reviews = details.reviews || [];\nconst top_review = reviews.length > 0\n  ? reviews[0].text.substring(0, 120).replace(/\\n/g, ' ')\n  : '';\nconst is_open = details.opening_hours?.open_now;\nconst hours_note = is_open === true ? 'currently open' : is_open === false ? 'currently closed' : '';\n\nconst base = 'https://teamgoldllc.de/preview';\nconst params = new URLSearchParams({\n  name: lead.business_name,\n  type: lead.industry,\n  city: lead.city,\n  phone: phone\n});\nconst preview_url = base + '?' + params.toString();\n\nlet wa_message;\nif (reviews_count > 0) {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nYou have ${reviews_count} reviews on Google with a ${rating}\u2b50 rating \u2014 clearly doing great work. But we noticed you don't have a website yet.\\n\\nWe put together a free website preview for ${lead.industry}s in ${lead.city}:\\n${preview_url}\\n\\nBook a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n} else {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nWe noticed you don't have a website yet \u2014 you're missing out on customers searching for ${lead.industry}s in ${lead.city} on Google.\\n\\nWe put together a free website preview for you:\\n${preview_url}\\n\\nBook a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n}\n\nreturn [{ json: {\n  ...lead,\n  phone,\n  rating,\n  reviews_count,\n  top_review,\n  hours_note,\n  preview_url,\n  wa_message\n} }];"
       },
       "id": "node-gen-preview",
       "name": "Enrich + Generate Preview & Message",
@@ -167,7 +179,7 @@
         "operation": "append",
         "documentId": {
           "__rl": true,
-          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
+          "value": "CONFIGURED_IN_N8N",
           "mode": "id"
         },
         "sheetName": {
@@ -204,7 +216,13 @@
       "position": [
         1780,
         400
-      ]
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "f3kxGuGdAhr7J8iI",
+          "name": "Google Sheets (Service Account)"
+        }
+      }
     },
     {
       "parameters": {
@@ -293,7 +311,7 @@
         "operation": "update",
         "documentId": {
           "__rl": true,
-          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
+          "value": "CONFIGURED_IN_N8N",
           "mode": "id"
         },
         "sheetName": {
@@ -323,7 +341,13 @@
       "position": [
         2580,
         400
-      ]
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "f3kxGuGdAhr7J8iI",
+          "name": "Google Sheets (Service Account)"
+        }
+      }
     },
     {
       "parameters": {
@@ -339,6 +363,79 @@
         400
       ],
       "webhookId": "wait-between-leads"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "CONFIGURED_IN_N8N",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "node-read-config",
+      "name": "Read Config",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        180,
+        600
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "f3kxGuGdAhr7J8iI",
+          "name": "Google Sheets Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "CONFIGURED_IN_N8N",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Blacklist",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "node-read-blacklist",
+      "name": "Read Blacklist",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        180,
+        500
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "f3kxGuGdAhr7J8iI",
+          "name": "Google Sheets Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// After dedup: also skip blacklisted numbers\nconst lead = $input.item.json;\nconst blacklist = $('Read Blacklist').all().map(i => i.json);\n\nconst isBlacklisted = blacklist.some(row =>\n  row.phone && row.phone === lead.phone\n);\n\nif (isBlacklisted) {\n  console.log('Skipping blacklisted:', lead.business_name);\n  return [];\n}\nreturn [{ json: lead }];"
+      },
+      "id": "node-check-blacklist",
+      "name": "Skip If Blacklisted",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        500
+      ]
     }
   ],
   "connections": {
@@ -347,6 +444,16 @@
         [
           {
             "node": "Set Target City & Industry",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Blacklist",
             "type": "main",
             "index": 0
           }
@@ -406,7 +513,7 @@
       "main": [
         [
           {
-            "node": "Get Place Details (Rating + Reviews)",
+            "node": "Skip If Blacklisted",
             "type": "main",
             "index": 0
           }
@@ -489,9 +596,627 @@
           }
         ]
       ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "Set Target City & Industry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Blacklist": {
+      "main": [
+        [
+          {
+            "node": "Skip If Blacklisted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip If Blacklisted": {
+      "main": [
+        [
+          {
+            "node": "Get Place Details (Rating + Reviews)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "executionOrder": "v1"
-  }
+  },
+  "staticData": {
+    "node:Run Daily 9am (Mon-Fri)": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": null,
+  "versionId": "02dce0ec-37f0-40da-93a9-91026e10ed88",
+  "activeVersionId": "02dce0ec-37f0-40da-93a9-91026e10ed88",
+  "versionCounter": 7,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "shared": [
+    {
+      "updatedAt": "2026-06-09T15:22:11.871Z",
+      "createdAt": "2026-06-09T15:22:11.871Z",
+      "role": "workflow:owner",
+      "workflowId": "Iu3JXQxPJNQI45kx",
+      "projectId": "3voaJIHv56LnPYLB",
+      "project": {
+        "updatedAt": "2026-06-09T15:17:15.003Z",
+        "createdAt": "2026-06-09T15:12:20.397Z",
+        "id": "3voaJIHv56LnPYLB",
+        "name": "Atakan Oztunc <atakanfisc@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "a7a24c89-f0ff-416e-9afa-9bd535025630"
+      }
+    }
+  ],
+  "tags": [],
+  "parentFolder": null,
+  "activeVersion": {
+    "updatedAt": "2026-06-09T17:21:40.646Z",
+    "createdAt": "2026-06-09T17:21:40.646Z",
+    "versionId": "02dce0ec-37f0-40da-93a9-91026e10ed88",
+    "workflowId": "Iu3JXQxPJNQI45kx",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "0 9 * * 1-5"
+              }
+            ]
+          }
+        },
+        "id": "node-schedule",
+        "name": "Run Daily 9am (Mon-Fri)",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1,
+        "position": [
+          180,
+          400
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// CONFIGURE THESE\nconst INDUSTRIES = ['plumber', 'electrician', 'hvac contractor', 'roofer', 'painter'];\nconst CITIES = ['Austin TX', 'Houston TX', 'Dallas TX', 'Phoenix AZ', 'Las Vegas NV'];\nconst LEADS_PER_RUN = 10;\n\n// Pick a random city and industry for this run\nconst city = CITIES[Math.floor(Math.random() * CITIES.length)];\nconst industry = INDUSTRIES[Math.floor(Math.random() * INDUSTRIES.length)];\n\nreturn [{ json: { city, industry, leads_per_run: LEADS_PER_RUN, search_query: industry + ' in ' + city } }];"
+        },
+        "id": "node-config",
+        "name": "Set Target City & Industry",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          380,
+          400
+        ]
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "https://maps.googleapis.com/maps/api/place/textsearch/json",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "query",
+                "value": "={{ $json.search_query }}"
+              },
+              {
+                "name": "key",
+                "value": "AIzaSyCndiGA-NcAxAu3zcyZSSiEUPkJRK4D91o"
+              },
+              {
+                "name": "type",
+                "value": "establishment"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "node-places",
+        "name": "Google Places \u2014 Find Businesses",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4,
+        "position": [
+          580,
+          400
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const results = $input.item.json.results || [];\nconst city = $('Set Target City & Industry').item.json.city;\nconst industry = $('Set Target City & Industry').item.json.industry;\nconst limit = $('Set Target City & Industry').item.json.leads_per_run;\n\n// Filter: no website only \u2014 phone comes from Place Details\nconst leads = results\n  .filter(r => !r.website)\n  .slice(0, limit)\n  .map(r => ({\n    business_name: r.name,\n    phone: '',\n    address: r.formatted_address || '',\n    industry: industry,\n    city: city.split(' ')[0],\n    state: city.split(' ')[1] || '',\n    has_website: 'no',\n    rating: r.rating || 0,\n    reviews_count: r.user_ratings_total || 0,\n    place_id: r.place_id,\n    status: 'new'\n  }));\n\nif (leads.length === 0) return [];\nreturn leads.map(l => ({ json: l }));"
+        },
+        "id": "node-filter-leads",
+        "name": "Filter: No Website + Has Phone",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          780,
+          400
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "read",
+          "documentId": {
+            "__rl": true,
+            "value": "CONFIGURED_IN_N8N",
+            "mode": "id"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": "Leads",
+            "mode": "name"
+          },
+          "options": {},
+          "authentication": "serviceAccount"
+        },
+        "id": "node-read-existing",
+        "name": "Read Existing Leads",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4,
+        "position": [
+          980,
+          300
+        ],
+        "credentials": {
+          "googleApi": {
+            "id": "f3kxGuGdAhr7J8iI",
+            "name": "Google Sheets (Service Account)"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Receive items from both Filter AND Read Existing Leads\n// Only process items that are actual new leads (have place_id + industry)\nconst allItems = $input.all();\nconst newLeads = allItems.filter(item =>\n  item.json && item.json.place_id && item.json.industry\n);\n\nif (newLeads.length === 0) return [];\n\nlet existingRows = [];\ntry {\n  existingRows = $('Read Existing Leads').all().map(i => i.json);\n} catch(e) { /* sheet empty or not yet run */ }\n\nconst result = [];\nfor (const leadItem of newLeads) {\n  const newLead = leadItem.json;\n  const alreadyContacted = existingRows.some(row =>\n    (row.phone && row.phone === newLead.phone) ||\n    (row.place_id && row.place_id === newLead.place_id)\n  );\n  if (!alreadyContacted) {\n    result.push({ json: newLead });\n  }\n}\n\nreturn result;"
+        },
+        "id": "node-dedup",
+        "name": "Skip If Already Called",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1180,
+          400
+        ]
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "https://maps.googleapis.com/maps/api/place/details/json",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "place_id",
+                "value": "={{ $json.place_id }}"
+              },
+              {
+                "name": "fields",
+                "value": "formatted_phone_number,rating,user_ratings_total,reviews,opening_hours,business_status"
+              },
+              {
+                "name": "key",
+                "value": "AIzaSyCndiGA-NcAxAu3zcyZSSiEUPkJRK4D91o"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "node-place-details",
+        "name": "Get Place Details (Rating + Reviews)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4,
+        "position": [
+          1380,
+          400
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const lead = $('Skip If Already Called').item.json;\nconst details = $input.item.json.result || {};\n\n// Get phone from Place Details, normalize to 10 digits\nconst rawPhone = details.formatted_phone_number || lead.phone || '';\nconst phone = rawPhone.replace(/\\D/g, '').replace(/^1/, '');\n\n// Skip lead if no valid phone\nif (!phone || phone.length < 10) return [];\n\nconst rating = details.rating || lead.rating || 0;\nconst reviews_count = details.user_ratings_total || lead.reviews_count || 0;\nconst reviews = details.reviews || [];\nconst top_review = reviews.length > 0\n  ? reviews[0].text.substring(0, 120).replace(/\\n/g, ' ')\n  : '';\nconst is_open = details.opening_hours?.open_now;\nconst hours_note = is_open === true ? 'currently open' : is_open === false ? 'currently closed' : '';\n\nconst base = 'https://teamgoldllc.de/preview';\nconst params = new URLSearchParams({\n  name: lead.business_name,\n  type: lead.industry,\n  city: lead.city,\n  phone: phone\n});\nconst preview_url = base + '?' + params.toString();\n\nlet wa_message;\nif (reviews_count > 0) {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nYou have ${reviews_count} reviews on Google with a ${rating}\u2b50 rating \u2014 clearly doing great work. But we noticed you don't have a website yet.\\n\\nWe put together a free website preview for ${lead.industry}s in ${lead.city}:\\n${preview_url}\\n\\nBook a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n} else {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nWe noticed you don't have a website yet \u2014 you're missing out on customers searching for ${lead.industry}s in ${lead.city} on Google.\\n\\nWe put together a free website preview for you:\\n${preview_url}\\n\\nBook a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n}\n\nreturn [{ json: {\n  ...lead,\n  phone,\n  rating,\n  reviews_count,\n  top_review,\n  hours_note,\n  preview_url,\n  wa_message\n} }];"
+        },
+        "id": "node-gen-preview",
+        "name": "Enrich + Generate Preview & Message",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1580,
+          400
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "append",
+          "documentId": {
+            "__rl": true,
+            "value": "CONFIGURED_IN_N8N",
+            "mode": "id"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": "Leads",
+            "mode": "name"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "business_name": "={{ $json.business_name }}",
+              "phone": "={{ $json.phone }}",
+              "industry": "={{ $json.industry }}",
+              "city": "={{ $json.city }}",
+              "state": "={{ $json.state }}",
+              "address": "={{ $json.address }}",
+              "has_website": "no",
+              "rating": "={{ $json.rating }}",
+              "reviews_count": "={{ $json.reviews_count }}",
+              "place_id": "={{ $json.place_id }}",
+              "preview_url": "={{ $json.preview_url }}",
+              "status": "pending",
+              "added_at": "={{ new Date().toISOString() }}"
+            },
+            "schema": []
+          },
+          "options": {},
+          "authentication": "serviceAccount"
+        },
+        "id": "node-save-lead",
+        "name": "Save Lead to Google Sheets",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4,
+        "position": [
+          1780,
+          400
+        ],
+        "credentials": {
+          "googleApi": {
+            "id": "f3kxGuGdAhr7J8iI",
+            "name": "Google Sheets (Service Account)"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.twilio.com/2010-04-01/Accounts/REPLACE_WITH_TWILIO_ACCOUNT_SID/Messages.json",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpBasicAuth",
+          "sendBody": true,
+          "contentType": "form-urlencoded",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "From",
+                "value": "whatsapp:+REPLACE_WITH_TWILIO_WHATSAPP_NUMBER"
+              },
+              {
+                "name": "To",
+                "value": "=whatsapp:+1{{ $json.phone }}"
+              },
+              {
+                "name": "Body",
+                "value": "={{ $json.wa_message }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "node-whatsapp",
+        "name": "Send WhatsApp with Draft Link",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4,
+        "position": [
+          1980,
+          400
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "amount": 2,
+          "unit": "minutes"
+        },
+        "id": "node-wait-2min",
+        "name": "Wait 2 Minutes",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1,
+        "position": [
+          2180,
+          400
+        ],
+        "webhookId": "wait-before-call"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.vapi.ai/call/phone",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer fac0b324-7d83-4f8c-a396-584f5a5bfd47"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "json",
+          "jsonBody": "={{ JSON.stringify({ phoneNumberId: 'e1be79b3-b1c3-42a4-a744-b298be092b26', assistantId: 'bdcc6edf-095f-4cdc-93d5-a138be0b1c0b', customer: { number: '+1' + $json.phone.replace(/\\D/g,''), name: $json.business_name }, assistantOverrides: { variableValues: { business_name: $json.business_name, industry: $json.industry, city: $json.city, rating: String($json.rating || ''), reviews_count: String($json.reviews_count || '0'), top_review: $json.top_review || '', preview_url: $json.preview_url } } }) }}",
+          "options": {}
+        },
+        "id": "node-vapi-call",
+        "name": "VAPI \u2014 Outbound Call",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4,
+        "position": [
+          2380,
+          400
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "documentId": {
+            "__rl": true,
+            "value": "CONFIGURED_IN_N8N",
+            "mode": "id"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": "Leads",
+            "mode": "name"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "status": "called",
+              "call_id": "={{ $json.id }}",
+              "called_at": "={{ new Date().toISOString() }}"
+            },
+            "matchingColumns": [
+              "phone"
+            ],
+            "schema": []
+          },
+          "options": {},
+          "authentication": "serviceAccount"
+        },
+        "id": "node-update-called",
+        "name": "Mark as Called in Sheets",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4,
+        "position": [
+          2580,
+          400
+        ],
+        "credentials": {
+          "googleApi": {
+            "id": "f3kxGuGdAhr7J8iI",
+            "name": "Google Sheets (Service Account)"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "amount": 60,
+          "unit": "seconds"
+        },
+        "id": "node-wait-60",
+        "name": "Wait 60s Before Next Lead",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1,
+        "position": [
+          2780,
+          400
+        ],
+        "webhookId": "wait-between-leads"
+      }
+    ],
+    "connections": {
+      "Run Daily 9am (Mon-Fri)": {
+        "main": [
+          [
+            {
+              "node": "Set Target City & Industry",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set Target City & Industry": {
+        "main": [
+          [
+            {
+              "node": "Google Places \u2014 Find Businesses",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Google Places \u2014 Find Businesses": {
+        "main": [
+          [
+            {
+              "node": "Filter: No Website + Has Phone",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Read Existing Leads",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Filter: No Website + Has Phone": {
+        "main": [
+          [
+            {
+              "node": "Skip If Already Called",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Read Existing Leads": {
+        "main": [
+          [
+            {
+              "node": "Skip If Already Called",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Skip If Already Called": {
+        "main": [
+          [
+            {
+              "node": "Get Place Details (Rating + Reviews)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Place Details (Rating + Reviews)": {
+        "main": [
+          [
+            {
+              "node": "Enrich + Generate Preview & Message",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Enrich + Generate Preview & Message": {
+        "main": [
+          [
+            {
+              "node": "Save Lead to Google Sheets",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Save Lead to Google Sheets": {
+        "main": [
+          [
+            {
+              "node": "Send WhatsApp with Draft Link",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send WhatsApp with Draft Link": {
+        "main": [
+          [
+            {
+              "node": "Wait 2 Minutes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait 2 Minutes": {
+        "main": [
+          [
+            {
+              "node": "VAPI \u2014 Outbound Call",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "VAPI \u2014 Outbound Call": {
+        "main": [
+          [
+            {
+              "node": "Mark as Called in Sheets",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Mark as Called in Sheets": {
+        "main": [
+          [
+            {
+              "node": "Wait 60s Before Next Lead",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "Atakan Oztunc",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-06-09T17:21:58.332Z",
+        "id": 4,
+        "workflowId": "Iu3JXQxPJNQI45kx",
+        "versionId": "02dce0ec-37f0-40da-93a9-91026e10ed88",
+        "event": "activated",
+        "userId": "a7a24c89-f0ff-416e-9afa-9bd535025630"
+      }
+    ]
+  },
+  "scopes": [
+    "execution:reveal",
+    "workflow:create",
+    "workflow:delete",
+    "workflow:disableRedaction",
+    "workflow:enableRedaction",
+    "workflow:execute",
+    "workflow:execute-chat",
+    "workflow:export",
+    "workflow:import",
+    "workflow:list",
+    "workflow:move",
+    "workflow:publish",
+    "workflow:read",
+    "workflow:share",
+    "workflow:unpublish",
+    "workflow:unshare",
+    "workflow:update"
+  ],
+  "checksum": "46903c7d617a9a9444799b2651cb1a2179f5ed85f7ea3f4920b7bc5890688101"
 }
