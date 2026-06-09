@@ -1,0 +1,185 @@
+{
+  "name": "VAPI Cold Caller — Outbound Calls",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "node-trigger",
+      "name": "Start Manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [180, 400]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "options": {
+          "headerRow": 1
+        }
+      },
+      "id": "node-read-leads",
+      "name": "Read Leads from Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [400, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "filter-status",
+              "leftValue": "={{ $json['status'] }}",
+              "rightValue": "called",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "filter-phone",
+              "leftValue": "={{ $json['phone'] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-filter",
+      "name": "Only Uncalled Leads",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [620, 400]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "node-loop",
+      "name": "Process One Lead at a Time",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [840, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.vapi.ai/call/phone",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_WITH_YOUR_VAPI_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify({ assistantId: 'REPLACE_WITH_YOUR_ASSISTANT_ID', phoneNumberId: 'REPLACE_WITH_YOUR_PHONE_NUMBER_ID', customer: { number: '+1' + $json['phone'].replace(/\\D/g, ''), name: $json['business_name'] }, assistantOverrides: { variableValues: { business_name: $json['business_name'], industry: $json['industry'], city: $json['city'], owner_name: $json['owner_name'] || '' } } }) }}",
+        "options": {}
+      },
+      "id": "node-vapi-call",
+      "name": "Make VAPI Outbound Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1060, 400]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "called",
+            "call_id": "={{ $('Make VAPI Outbound Call').item.json['id'] }}",
+            "called_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": ["phone"],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "node-update-sheet",
+      "name": "Mark Lead as Called",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1280, 400]
+    },
+    {
+      "parameters": {
+        "amount": 60,
+        "unit": "seconds"
+      },
+      "id": "node-wait",
+      "name": "Wait 60 Seconds Between Calls",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1500, 400],
+      "webhookId": "wait-between-calls"
+    }
+  ],
+  "connections": {
+    "Start Manually": {
+      "main": [[{"node": "Read Leads from Google Sheets", "type": "main", "index": 0}]]
+    },
+    "Read Leads from Google Sheets": {
+      "main": [[{"node": "Only Uncalled Leads", "type": "main", "index": 0}]]
+    },
+    "Only Uncalled Leads": {
+      "main": [[{"node": "Process One Lead at a Time", "type": "main", "index": 0}]]
+    },
+    "Process One Lead at a Time": {
+      "main": [
+        [{"node": "Make VAPI Outbound Call", "type": "main", "index": 0}],
+        []
+      ]
+    },
+    "Make VAPI Outbound Call": {
+      "main": [[{"node": "Mark Lead as Called", "type": "main", "index": 0}]]
+    },
+    "Mark Lead as Called": {
+      "main": [[{"node": "Wait 60 Seconds Between Calls", "type": "main", "index": 0}]]
+    },
+    "Wait 60 Seconds Between Calls": {
+      "main": [[{"node": "Process One Lead at a Time", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

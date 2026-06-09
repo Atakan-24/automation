@@ -1,0 +1,6 @@
+business_name,owner_name,phone,industry,city,state,has_website,website_url,status,call_id,called_at,outcome,meeting_booked,meeting_time,email,notes
+Smith Plumbing,John Smith,2125551234,plumber,New York,NY,no,,pending,,,,,,,
+Johnson Electric,Mike Johnson,3105552345,electrician,Los Angeles,CA,no,,pending,,,,,,,
+Brown HVAC Services,Tom Brown,7735553456,hvac technician,Chicago,IL,yes,brownhvac.com,pending,,,,,,,
+Davis Roofing,Sarah Davis,6025554567,roofer,Phoenix,AZ,no,,pending,,,,,,,
+Green Landscaping,Chris Green,4155555678,landscaper,San Francisco,CA,no,,pending,,,,,,,

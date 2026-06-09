@@ -1,0 +1,103 @@
+{
+  "name": "VAPI Call Results — Save to Google Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi-call-results",
+        "options": {}
+      },
+      "id": "node-webhook",
+      "name": "Receive VAPI Results",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 400],
+      "webhookId": "vapi-call-results"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "filter-end",
+              "leftValue": "={{ $json.body?.message?.type }}",
+              "rightValue": "end-of-call-report",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-filter",
+      "name": "Only End-of-Call Events",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Call Results",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "call_id": "={{ $json.body?.message?.call?.id }}",
+            "phone": "={{ $json.body?.message?.call?.customer?.number }}",
+            "business_name": "={{ $json.body?.message?.call?.customer?.name }}",
+            "duration_seconds": "={{ $json.body?.message?.durationSeconds }}",
+            "ended_reason": "={{ $json.body?.message?.endedReason }}",
+            "summary": "={{ $json.body?.message?.summary }}",
+            "transcript": "={{ $json.body?.message?.transcript }}",
+            "timestamp": "={{ new Date().toISOString() }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "node-save",
+      "name": "Save to Call Results Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{ \"status\": \"received\" }",
+        "options": {}
+      },
+      "id": "node-respond",
+      "name": "Respond to VAPI",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [860, 400]
+    }
+  ],
+  "connections": {
+    "Receive VAPI Results": {
+      "main": [[{"node": "Only End-of-Call Events", "type": "main", "index": 0}]]
+    },
+    "Only End-of-Call Events": {
+      "main": [[{"node": "Save to Call Results Sheet", "type": "main", "index": 0}]]
+    },
+    "Save to Call Results Sheet": {
+      "main": [[{"node": "Respond to VAPI", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
