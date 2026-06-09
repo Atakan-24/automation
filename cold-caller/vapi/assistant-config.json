@@ -1,0 +1,25 @@
+{
+  "assistantId": "bdcc6edf-095f-4cdc-93d5-a138be0b1c0b",
+  "name": "Ryan - Cold Caller (Home Services)",
+  "phoneNumberId": "e1be79b3-b1c3-42a4-a744-b298be092b26",
+  "phoneNumber": "+1 (757) 743-9084",
+  "voice": {
+    "provider": "vapi",
+    "voiceId": "Elliot"
+  },
+  "model": {
+    "provider": "openai",
+    "model": "gpt-4o"
+  },
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-3",
+    "language": "en"
+  },
+  "firstMessage": "Hey — is this {{business_name}}?",
+  "voicemailMessage": "Hey, this is Ryan from Team Gold — we help home service businesses get more customers from Google. I will try you again soon. Have a great day!",
+  "endCallMessage": "Talk soon, take care!",
+  "endCallPhrases": ["goodbye", "talk to you soon", "take care", "bye bye", "have a great day"],
+  "backgroundDenoisingEnabled": true,
+  "assistantVariables": ["business_name", "industry", "city"]
+}
