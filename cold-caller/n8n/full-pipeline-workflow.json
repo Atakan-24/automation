@@ -1,17 +1,25 @@
 {
-  "name": "Team Gold — Full Pipeline (Leads → Draft → Call → Track)",
+  "name": "Team Gold \u2014 Full Pipeline (Leads \u2192 Draft \u2192 Call \u2192 Track)",
   "nodes": [
     {
       "parameters": {
         "rule": {
-          "interval": [{ "field": "cronExpression", "expression": "0 9 * * 1-5" }]
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
         }
       },
       "id": "node-schedule",
       "name": "Run Daily 9am (Mon-Fri)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
-      "position": [180, 400]
+      "position": [
+        180,
+        400
+      ]
     },
     {
       "parameters": {
@@ -21,7 +29,10 @@
       "name": "Set Target City & Industry",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [380, 400]
+      "position": [
+        380,
+        400
+      ]
     },
     {
       "parameters": {
@@ -30,18 +41,30 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "query", "value": "={{ $json.search_query }}" },
-            { "name": "key", "value": "REPLACE_WITH_GOOGLE_PLACES_API_KEY" },
-            { "name": "type", "value": "establishment" }
+            {
+              "name": "query",
+              "value": "={{ $json.search_query }}"
+            },
+            {
+              "name": "key",
+              "value": "AIzaSyCndiGA-NcAxAu3zcyZSSiEUPkJRK4D91o"
+            },
+            {
+              "name": "type",
+              "value": "establishment"
+            }
           ]
         },
         "options": {}
       },
       "id": "node-places",
-      "name": "Google Places — Find Businesses",
+      "name": "Google Places \u2014 Find Businesses",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [580, 400]
+      "position": [
+        580,
+        400
+      ]
     },
     {
       "parameters": {
@@ -51,20 +74,35 @@
       "name": "Filter: No Website + Has Phone",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [780, 400]
+      "position": [
+        780,
+        400
+      ]
     },
     {
       "parameters": {
         "operation": "read",
-        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
-        "sheetName": { "__rl": true, "value": "Leads", "mode": "name" },
-        "options": {}
+        "documentId": {
+          "__rl": true,
+          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "node-read-existing",
       "name": "Read Existing Leads",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [980, 300]
+      "position": [
+        980,
+        300
+      ]
     },
     {
       "parameters": {
@@ -74,7 +112,10 @@
       "name": "Skip If Already Called",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1180, 400]
+      "position": [
+        1180,
+        400
+      ]
     },
     {
       "parameters": {
@@ -83,9 +124,18 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "place_id", "value": "={{ $json.place_id }}" },
-            { "name": "fields", "value": "rating,user_ratings_total,reviews,opening_hours,business_status" },
-            { "name": "key", "value": "REPLACE_WITH_GOOGLE_PLACES_API_KEY" }
+            {
+              "name": "place_id",
+              "value": "={{ $json.place_id }}"
+            },
+            {
+              "name": "fields",
+              "value": "rating,user_ratings_total,reviews,opening_hours,business_status"
+            },
+            {
+              "name": "key",
+              "value": "AIzaSyCndiGA-NcAxAu3zcyZSSiEUPkJRK4D91o"
+            }
           ]
         },
         "options": {}
@@ -94,23 +144,37 @@
       "name": "Get Place Details (Rating + Reviews)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1380, 400]
+      "position": [
+        1380,
+        400
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const lead = $('Skip If Already Called').item.json;\nconst details = $input.item.json.result || {};\n\n// Enrich lead with place details\nconst rating = details.rating || lead.rating || 0;\nconst reviews_count = details.user_ratings_total || lead.reviews_count || 0;\n\n// Get the most recent review text (first 120 chars)\nconst reviews = details.reviews || [];\nconst top_review = reviews.length > 0 \n  ? reviews[0].text.substring(0, 120).replace(/\\n/g, ' ') \n  : '';\n\n// Is business currently open?\nconst is_open = details.opening_hours?.open_now;\nconst hours_note = is_open === true ? 'currently open' : is_open === false ? 'currently closed' : '';\n\n// Build preview URL\nconst base = 'https://teamgoldllc.de/preview';\nconst params = new URLSearchParams({\n  name: lead.business_name,\n  type: lead.industry,\n  city: lead.city,\n  phone: lead.phone\n});\nconst preview_url = base + '?' + params.toString();\n\n// Build personalized WhatsApp message\nlet wa_message;\nif (reviews_count > 0) {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nYou have ${reviews_count} reviews on Google with a ${rating}⭐ rating — clearly doing great work. But we noticed you don't have a website yet.\\n\\nWe put together a free website preview for ${lead.industry}s in ${lead.city}:\\n${preview_url}\\n\\nWant to see how this could bring you more calls? Book a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n} else {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nWe noticed you don't have a website yet — you're missing out on customers searching for ${lead.industry}s in ${lead.city} on Google.\\n\\nWe put together a free website preview for you:\\n${preview_url}\\n\\nBook a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n}\n\nreturn [{ json: { \n  ...lead, \n  rating, \n  reviews_count,\n  top_review,\n  hours_note,\n  preview_url, \n  wa_message \n} }];"
+        "jsCode": "const lead = $('Skip If Already Called').item.json;\nconst details = $input.item.json.result || {};\n\n// Enrich lead with place details\nconst rating = details.rating || lead.rating || 0;\nconst reviews_count = details.user_ratings_total || lead.reviews_count || 0;\n\n// Get the most recent review text (first 120 chars)\nconst reviews = details.reviews || [];\nconst top_review = reviews.length > 0 \n  ? reviews[0].text.substring(0, 120).replace(/\\n/g, ' ') \n  : '';\n\n// Is business currently open?\nconst is_open = details.opening_hours?.open_now;\nconst hours_note = is_open === true ? 'currently open' : is_open === false ? 'currently closed' : '';\n\n// Build preview URL\nconst base = 'https://teamgoldllc.de/preview';\nconst params = new URLSearchParams({\n  name: lead.business_name,\n  type: lead.industry,\n  city: lead.city,\n  phone: lead.phone\n});\nconst preview_url = base + '?' + params.toString();\n\n// Build personalized WhatsApp message\nlet wa_message;\nif (reviews_count > 0) {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nYou have ${reviews_count} reviews on Google with a ${rating}\u2b50 rating \u2014 clearly doing great work. But we noticed you don't have a website yet.\\n\\nWe put together a free website preview for ${lead.industry}s in ${lead.city}:\\n${preview_url}\\n\\nWant to see how this could bring you more calls? Book a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n} else {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nWe noticed you don't have a website yet \u2014 you're missing out on customers searching for ${lead.industry}s in ${lead.city} on Google.\\n\\nWe put together a free website preview for you:\\n${preview_url}\\n\\nBook a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n}\n\nreturn [{ json: { \n  ...lead, \n  rating, \n  reviews_count,\n  top_review,\n  hours_note,\n  preview_url, \n  wa_message \n} }];"
       },
       "id": "node-gen-preview",
       "name": "Enrich + Generate Preview & Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1580, 400]
+      "position": [
+        1580,
+        400
+      ]
     },
     {
       "parameters": {
         "operation": "append",
-        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
-        "sheetName": { "__rl": true, "value": "Leads", "mode": "name" },
+        "documentId": {
+          "__rl": true,
+          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -130,13 +194,17 @@
           },
           "schema": []
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "node-save-lead",
       "name": "Save Lead to Google Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [1780, 400]
+      "position": [
+        1780,
+        400
+      ]
     },
     {
       "parameters": {
@@ -148,9 +216,18 @@
         "contentType": "form-urlencoded",
         "bodyParameters": {
           "parameters": [
-            { "name": "From", "value": "whatsapp:+REPLACE_WITH_TWILIO_WHATSAPP_NUMBER" },
-            { "name": "To", "value": "=whatsapp:+1{{ $json.phone }}" },
-            { "name": "Body", "value": "={{ $json.wa_message }}" }
+            {
+              "name": "From",
+              "value": "whatsapp:+REPLACE_WITH_TWILIO_WHATSAPP_NUMBER"
+            },
+            {
+              "name": "To",
+              "value": "=whatsapp:+1{{ $json.phone }}"
+            },
+            {
+              "name": "Body",
+              "value": "={{ $json.wa_message }}"
+            }
           ]
         },
         "options": {}
@@ -159,15 +236,24 @@
       "name": "Send WhatsApp with Draft Link",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1980, 400]
+      "position": [
+        1980,
+        400
+      ]
     },
     {
-      "parameters": { "amount": 2, "unit": "minutes" },
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
       "id": "node-wait-2min",
       "name": "Wait 2 Minutes",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1,
-      "position": [2180, 400],
+      "position": [
+        2180,
+        400
+      ],
       "webhookId": "wait-before-call"
     },
     {
@@ -177,8 +263,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "Bearer fac0b324-7d83-4f8c-a396-584f5a5bfd47" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Authorization",
+              "value": "Bearer fac0b324-7d83-4f8c-a396-584f5a5bfd47"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -187,16 +279,27 @@
         "options": {}
       },
       "id": "node-vapi-call",
-      "name": "VAPI — Outbound Call",
+      "name": "VAPI \u2014 Outbound Call",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [2380, 400]
+      "position": [
+        2380,
+        400
+      ]
     },
     {
       "parameters": {
         "operation": "update",
-        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
-        "sheetName": { "__rl": true, "value": "Leads", "mode": "name" },
+        "documentId": {
+          "__rl": true,
+          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -204,46 +307,190 @@
             "call_id": "={{ $json.id }}",
             "called_at": "={{ new Date().toISOString() }}"
           },
-          "matchingColumns": ["phone"],
+          "matchingColumns": [
+            "phone"
+          ],
           "schema": []
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "node-update-called",
       "name": "Mark as Called in Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [2580, 400]
+      "position": [
+        2580,
+        400
+      ]
     },
     {
-      "parameters": { "amount": 60, "unit": "seconds" },
+      "parameters": {
+        "amount": 60,
+        "unit": "seconds"
+      },
       "id": "node-wait-60",
       "name": "Wait 60s Before Next Lead",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1,
-      "position": [2780, 400],
+      "position": [
+        2780,
+        400
+      ],
       "webhookId": "wait-between-leads"
     }
   ],
   "connections": {
-    "Run Daily 9am (Mon-Fri)": { "main": [[{ "node": "Set Target City & Industry", "type": "main", "index": 0 }]] },
-    "Set Target City & Industry": { "main": [[{ "node": "Google Places — Find Businesses", "type": "main", "index": 0 }]] },
-    "Google Places — Find Businesses": {
-      "main": [[
-        { "node": "Filter: No Website + Has Phone", "type": "main", "index": 0 },
-        { "node": "Read Existing Leads", "type": "main", "index": 0 }
-      ]]
+    "Run Daily 9am (Mon-Fri)": {
+      "main": [
+        [
+          {
+            "node": "Set Target City & Industry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Filter: No Website + Has Phone": { "main": [[{ "node": "Skip If Already Called", "type": "main", "index": 0 }]] },
-    "Read Existing Leads": { "main": [[{ "node": "Skip If Already Called", "type": "main", "index": 0 }]] },
-    "Skip If Already Called": { "main": [[{ "node": "Get Place Details (Rating + Reviews)", "type": "main", "index": 0 }]] },
-    "Get Place Details (Rating + Reviews)": { "main": [[{ "node": "Enrich + Generate Preview & Message", "type": "main", "index": 0 }]] },
-    "Enrich + Generate Preview & Message": { "main": [[{ "node": "Save Lead to Google Sheets", "type": "main", "index": 0 }]] },
-    "Save Lead to Google Sheets": { "main": [[{ "node": "Send WhatsApp with Draft Link", "type": "main", "index": 0 }]] },
-    "Send WhatsApp with Draft Link": { "main": [[{ "node": "Wait 2 Minutes", "type": "main", "index": 0 }]] },
-    "Wait 2 Minutes": { "main": [[{ "node": "VAPI — Outbound Call", "type": "main", "index": 0 }]] },
-    "VAPI — Outbound Call": { "main": [[{ "node": "Mark as Called in Sheets", "type": "main", "index": 0 }]] },
-    "Mark as Called in Sheets": { "main": [[{ "node": "Wait 60s Before Next Lead", "type": "main", "index": 0 }]] }
+    "Set Target City & Industry": {
+      "main": [
+        [
+          {
+            "node": "Google Places \u2014 Find Businesses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Places \u2014 Find Businesses": {
+      "main": [
+        [
+          {
+            "node": "Filter: No Website + Has Phone",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Existing Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: No Website + Has Phone": {
+      "main": [
+        [
+          {
+            "node": "Skip If Already Called",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Existing Leads": {
+      "main": [
+        [
+          {
+            "node": "Skip If Already Called",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip If Already Called": {
+      "main": [
+        [
+          {
+            "node": "Get Place Details (Rating + Reviews)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Place Details (Rating + Reviews)": {
+      "main": [
+        [
+          {
+            "node": "Enrich + Generate Preview & Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich + Generate Preview & Message": {
+      "main": [
+        [
+          {
+            "node": "Save Lead to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Lead to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp with Draft Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp with Draft Link": {
+      "main": [
+        [
+          {
+            "node": "Wait 2 Minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2 Minutes": {
+      "main": [
+        [
+          {
+            "node": "VAPI \u2014 Outbound Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VAPI \u2014 Outbound Call": {
+      "main": [
+        [
+          {
+            "node": "Mark as Called in Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark as Called in Sheets": {
+      "main": [
+        [
+          {
+            "node": "Wait 60s Before Next Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1"
+  }
 }

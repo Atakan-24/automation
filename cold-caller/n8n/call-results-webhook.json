@@ -1,5 +1,5 @@
 {
-  "name": "VAPI Call Results — Save to Google Sheets",
+  "name": "VAPI Call Results \u2014 Save to Google Sheets",
   "nodes": [
     {
       "parameters": {
@@ -11,7 +11,10 @@
       "name": "Receive VAPI Results",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "webhookId": "vapi-call-results"
     },
     {
@@ -35,14 +38,17 @@
       "name": "Only End-of-Call Events",
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2,
-      "position": [420, 400]
+      "position": [
+        420,
+        400
+      ]
     },
     {
       "parameters": {
         "operation": "append",
         "documentId": {
           "__rl": true,
-          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
           "mode": "id"
         },
         "sheetName": {
@@ -64,13 +70,17 @@
           },
           "schema": []
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "node-save",
       "name": "Save to Call Results Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [640, 400]
+      "position": [
+        640,
+        400
+      ]
     },
     {
       "parameters": {
@@ -82,18 +92,45 @@
       "name": "Respond to VAPI",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [860, 400]
+      "position": [
+        860,
+        400
+      ]
     }
   ],
   "connections": {
     "Receive VAPI Results": {
-      "main": [[{"node": "Only End-of-Call Events", "type": "main", "index": 0}]]
+      "main": [
+        [
+          {
+            "node": "Only End-of-Call Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Only End-of-Call Events": {
-      "main": [[{"node": "Save to Call Results Sheet", "type": "main", "index": 0}]]
+      "main": [
+        [
+          {
+            "node": "Save to Call Results Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Save to Call Results Sheet": {
-      "main": [[{"node": "Respond to VAPI", "type": "main", "index": 0}]]
+      "main": [
+        [
+          {
+            "node": "Respond to VAPI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
