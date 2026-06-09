@@ -68,7 +68,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const results = $input.item.json.results || [];\nconst city = $('Set Target City & Industry').item.json.city;\nconst industry = $('Set Target City & Industry').item.json.industry;\nconst limit = $('Set Target City & Industry').item.json.leads_per_run;\n\n// Filter: no website, has phone number\nconst leads = results\n  .filter(r => !r.website && r.formatted_phone_number)\n  .slice(0, limit)\n  .map(r => ({\n    business_name: r.name,\n    phone: r.formatted_phone_number.replace(/[^0-9+]/g, ''),\n    address: r.formatted_address || '',\n    industry: industry,\n    city: city.split(' ')[0],\n    state: city.split(' ')[1] || '',\n    has_website: 'no',\n    rating: r.rating || 0,\n    reviews_count: r.user_ratings_total || 0,\n    place_id: r.place_id,\n    status: 'new'\n  }));\n\nif (leads.length === 0) return [];\nreturn leads.map(l => ({ json: l }));"
+        "jsCode": "const results = $input.item.json.results || [];\nconst city = $('Set Target City & Industry').item.json.city;\nconst industry = $('Set Target City & Industry').item.json.industry;\nconst limit = $('Set Target City & Industry').item.json.leads_per_run;\n\n// Filter: no website only \u2014 phone comes from Place Details\nconst leads = results\n  .filter(r => !r.website)\n  .slice(0, limit)\n  .map(r => ({\n    business_name: r.name,\n    phone: '',\n    address: r.formatted_address || '',\n    industry: industry,\n    city: city.split(' ')[0],\n    state: city.split(' ')[1] || '',\n    has_website: 'no',\n    rating: r.rating || 0,\n    reviews_count: r.user_ratings_total || 0,\n    place_id: r.place_id,\n    status: 'new'\n  }));\n\nif (leads.length === 0) return [];\nreturn leads.map(l => ({ json: l }));"
       },
       "id": "node-filter-leads",
       "name": "Filter: No Website + Has Phone",
@@ -106,7 +106,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const newLead = $('Filter: No Website + Has Phone').item.json;\nconst existing = $('Read Existing Leads').all().map(i => i.json);\n\n// Skip if phone OR place_id already in sheet\nconst alreadyContacted = existing.some(row => \n  (row.phone && row.phone === newLead.phone) ||\n  (row.place_id && row.place_id === newLead.place_id)\n);\n\nif (alreadyContacted) {\n  return [];\n}\nreturn [{ json: newLead }];"
+        "jsCode": "const allItems = $input.all();\nconst newLeads = allItems.filter(item =>\n  item.json && item.json.place_id && item.json.industry\n);\n\nif (newLeads.length === 0) return [];\n\nlet existingRows = [];\ntry {\n  existingRows = $('Read Existing Leads').all().map(i => i.json);\n} catch(e) { /* sheet empty */ }\n\nconst result = [];\nfor (const leadItem of newLeads) {\n  const newLead = leadItem.json;\n  const alreadyContacted = existingRows.some(row =>\n    (row.phone && row.phone === newLead.phone) ||\n    (row.place_id && row.place_id === newLead.place_id)\n  );\n  if (!alreadyContacted) result.push({ json: newLead });\n}\nreturn result;"
       },
       "id": "node-dedup",
       "name": "Skip If Already Called",
@@ -130,7 +130,7 @@
             },
             {
               "name": "fields",
-              "value": "rating,user_ratings_total,reviews,opening_hours,business_status"
+              "value": "formatted_phone_number,rating,user_ratings_total,reviews,opening_hours,business_status"
             },
             {
               "name": "key",
@@ -151,7 +151,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const lead = $('Skip If Already Called').item.json;\nconst details = $input.item.json.result || {};\n\n// Enrich lead with place details\nconst rating = details.rating || lead.rating || 0;\nconst reviews_count = details.user_ratings_total || lead.reviews_count || 0;\n\n// Get the most recent review text (first 120 chars)\nconst reviews = details.reviews || [];\nconst top_review = reviews.length > 0 \n  ? reviews[0].text.substring(0, 120).replace(/\\n/g, ' ') \n  : '';\n\n// Is business currently open?\nconst is_open = details.opening_hours?.open_now;\nconst hours_note = is_open === true ? 'currently open' : is_open === false ? 'currently closed' : '';\n\n// Build preview URL\nconst base = 'https://teamgoldllc.de/preview';\nconst params = new URLSearchParams({\n  name: lead.business_name,\n  type: lead.industry,\n  city: lead.city,\n  phone: lead.phone\n});\nconst preview_url = base + '?' + params.toString();\n\n// Build personalized WhatsApp message\nlet wa_message;\nif (reviews_count > 0) {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nYou have ${reviews_count} reviews on Google with a ${rating}\u2b50 rating \u2014 clearly doing great work. But we noticed you don't have a website yet.\\n\\nWe put together a free website preview for ${lead.industry}s in ${lead.city}:\\n${preview_url}\\n\\nWant to see how this could bring you more calls? Book a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n} else {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nWe noticed you don't have a website yet \u2014 you're missing out on customers searching for ${lead.industry}s in ${lead.city} on Google.\\n\\nWe put together a free website preview for you:\\n${preview_url}\\n\\nBook a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n}\n\nreturn [{ json: { \n  ...lead, \n  rating, \n  reviews_count,\n  top_review,\n  hours_note,\n  preview_url, \n  wa_message \n} }];"
+        "jsCode": "const lead = $('Skip If Already Called').item.json;\nconst details = $input.item.json.result || {};\n\nconst rawPhone = details.formatted_phone_number || lead.phone || '';\nconst phone = rawPhone.replace(/\\D/g, '').replace(/^1/, '');\n\nif (!phone || phone.length < 10) return [];\n\nconst rating = details.rating || lead.rating || 0;\nconst reviews_count = details.user_ratings_total || lead.reviews_count || 0;\nconst reviews = details.reviews || [];\nconst top_review = reviews.length > 0\n  ? reviews[0].text.substring(0, 120).replace(/\\n/g, ' ')\n  : '';\nconst is_open = details.opening_hours?.open_now;\nconst hours_note = is_open === true ? 'currently open' : is_open === false ? 'currently closed' : '';\n\nconst base = 'https://teamgoldllc.de/preview';\nconst params = new URLSearchParams({ name: lead.business_name, type: lead.industry, city: lead.city, phone: phone });\nconst preview_url = base + '?' + params.toString();\n\nlet wa_message;\nif (reviews_count > 0) {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nYou have ${reviews_count} reviews on Google with a ${rating}\u2b50 rating \u2014 clearly doing great work. But we noticed you don't have a website yet.\\n\\nWe put together a free website preview for ${lead.industry}s in ${lead.city}:\\n${preview_url}\\n\\nBook a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n} else {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nWe noticed you don't have a website yet \u2014 you're missing out on customers searching for ${lead.industry}s in ${lead.city} on Google.\\n\\nWe put together a free website preview for you:\\n${preview_url}\\n\\nBook a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n}\n\nreturn [{ json: { ...lead, phone, rating, reviews_count, top_review, hours_note, preview_url, wa_message } }];"
       },
       "id": "node-gen-preview",
       "name": "Enrich + Generate Preview & Message",
@@ -239,7 +239,8 @@
       "position": [
         1980,
         400
-      ]
+      ],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
