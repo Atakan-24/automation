@@ -1,0 +1,224 @@
+{
+  "name": "Team Gold — Full Pipeline (Leads → Draft → Call → Track)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 9 * * 1-5" }]
+        }
+      },
+      "id": "node-schedule",
+      "name": "Run Daily 9am (Mon-Fri)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [180, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CONFIGURE THESE\nconst INDUSTRIES = ['plumber', 'electrician', 'hvac contractor', 'roofer', 'painter'];\nconst CITIES = ['Austin TX', 'Houston TX', 'Dallas TX', 'Phoenix AZ', 'Las Vegas NV'];\nconst LEADS_PER_RUN = 10;\n\n// Pick a random city and industry for this run\nconst city = CITIES[Math.floor(Math.random() * CITIES.length)];\nconst industry = INDUSTRIES[Math.floor(Math.random() * INDUSTRIES.length)];\n\nreturn [{ json: { city, industry, leads_per_run: LEADS_PER_RUN, search_query: industry + ' in ' + city } }];"
+      },
+      "id": "node-config",
+      "name": "Set Target City & Industry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [380, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://maps.googleapis.com/maps/api/place/textsearch/json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "query", "value": "={{ $json.search_query }}" },
+            { "name": "key", "value": "REPLACE_WITH_GOOGLE_PLACES_API_KEY" },
+            { "name": "type", "value": "establishment" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-places",
+      "name": "Google Places — Find Businesses",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [580, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.item.json.results || [];\nconst city = $('Set Target City & Industry').item.json.city;\nconst industry = $('Set Target City & Industry').item.json.industry;\nconst limit = $('Set Target City & Industry').item.json.leads_per_run;\n\n// Filter: no website, has phone number\nconst leads = results\n  .filter(r => !r.website && r.formatted_phone_number)\n  .slice(0, limit)\n  .map(r => ({\n    business_name: r.name,\n    phone: r.formatted_phone_number.replace(/[^0-9+]/g, ''),\n    address: r.formatted_address || '',\n    industry: industry,\n    city: city.split(' ')[0],\n    state: city.split(' ')[1] || '',\n    has_website: 'no',\n    rating: r.rating || '',\n    place_id: r.place_id,\n    status: 'new'\n  }));\n\nif (leads.length === 0) return [];\nreturn leads.map(l => ({ json: l }));"
+      },
+      "id": "node-filter-leads",
+      "name": "Filter: No Website + Has Phone",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 400]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "Leads", "mode": "name" },
+        "options": {}
+      },
+      "id": "node-read-existing",
+      "name": "Read Existing Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [980, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const newLead = $('Filter: No Website + Has Phone').item.json;\nconst existing = $('Read Existing Leads').all().map(i => i.json.phone);\n\n// Skip if phone already in sheet\nif (existing.includes(newLead.phone)) {\n  return [];\n}\nreturn [{ json: newLead }];"
+      },
+      "id": "node-dedup",
+      "name": "Skip If Already Called",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1180, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $input.item.json;\n\n// Build the preview URL for teamgoldllc.de/preview\nconst base = 'https://teamgoldllc.de/preview';\nconst params = new URLSearchParams({\n  name: lead.business_name,\n  type: lead.industry,\n  city: lead.city,\n  phone: lead.phone\n});\nconst preview_url = base + '?' + params.toString();\n\n// Build WhatsApp message\nconst wa_message = 'Hi ' + lead.business_name + '! This is Ryan from Team Gold. We built a free website draft for your business — check it out here: ' + preview_url + ' \\n\\nIf you like it, book a free 30-min call with our developer Atakan: https://cal.com/atakanoztunc/30min';\n\nreturn [{ json: { ...lead, preview_url, wa_message } }];"
+      },
+      "id": "node-gen-preview",
+      "name": "Generate Preview URL & WhatsApp Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1380, 400]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "Leads", "mode": "name" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "business_name": "={{ $json.business_name }}",
+            "phone": "={{ $json.phone }}",
+            "industry": "={{ $json.industry }}",
+            "city": "={{ $json.city }}",
+            "state": "={{ $json.state }}",
+            "has_website": "no",
+            "preview_url": "={{ $json.preview_url }}",
+            "status": "pending",
+            "added_at": "={{ new Date().toISOString() }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "node-save-lead",
+      "name": "Save Lead to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1580, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/REPLACE_WITH_TWILIO_ACCOUNT_SID/Messages.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "From", "value": "whatsapp:+REPLACE_WITH_TWILIO_WHATSAPP_NUMBER" },
+            { "name": "To", "value": "=whatsapp:+1{{ $json.phone }}" },
+            { "name": "Body", "value": "={{ $json.wa_message }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-whatsapp",
+      "name": "Send WhatsApp with Draft Link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1780, 400]
+    },
+    {
+      "parameters": { "amount": 2, "unit": "minutes" },
+      "id": "node-wait-2min",
+      "name": "Wait 2 Minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1980, 400],
+      "webhookId": "wait-before-call"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.vapi.ai/call/phone",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer fac0b324-7d83-4f8c-a396-584f5a5bfd47" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify({ phoneNumberId: 'e1be79b3-b1c3-42a4-a744-b298be092b26', assistantId: 'bdcc6edf-095f-4cdc-93d5-a138be0b1c0b', customer: { number: '+1' + $json.phone.replace(/\\D/g,''), name: $json.business_name }, assistantOverrides: { variableValues: { business_name: $json.business_name, industry: $json.industry, city: $json.city } } }) }}",
+        "options": {}
+      },
+      "id": "node-vapi-call",
+      "name": "VAPI — Outbound Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2180, 400]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "Leads", "mode": "name" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "called",
+            "call_id": "={{ $json.id }}",
+            "called_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": ["phone"],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "node-update-called",
+      "name": "Mark as Called in Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [2380, 400]
+    },
+    {
+      "parameters": { "amount": 60, "unit": "seconds" },
+      "id": "node-wait-60",
+      "name": "Wait 60s Before Next Lead",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [2580, 400],
+      "webhookId": "wait-between-leads"
+    }
+  ],
+  "connections": {
+    "Run Daily 9am (Mon-Fri)": { "main": [[{ "node": "Set Target City & Industry", "type": "main", "index": 0 }]] },
+    "Set Target City & Industry": { "main": [[{ "node": "Google Places — Find Businesses", "type": "main", "index": 0 }]] },
+    "Google Places — Find Businesses": {
+      "main": [[
+        { "node": "Filter: No Website + Has Phone", "type": "main", "index": 0 },
+        { "node": "Read Existing Leads", "type": "main", "index": 0 }
+      ]]
+    },
+    "Filter: No Website + Has Phone": { "main": [[{ "node": "Skip If Already Called", "type": "main", "index": 0 }]] },
+    "Read Existing Leads": { "main": [[{ "node": "Skip If Already Called", "type": "main", "index": 0 }]] },
+    "Skip If Already Called": { "main": [[{ "node": "Generate Preview URL & WhatsApp Message", "type": "main", "index": 0 }]] },
+    "Generate Preview URL & WhatsApp Message": { "main": [[{ "node": "Save Lead to Google Sheets", "type": "main", "index": 0 }]] },
+    "Save Lead to Google Sheets": { "main": [[{ "node": "Send WhatsApp with Draft Link", "type": "main", "index": 0 }]] },
+    "Send WhatsApp with Draft Link": { "main": [[{ "node": "Wait 2 Minutes", "type": "main", "index": 0 }]] },
+    "Wait 2 Minutes": { "main": [[{ "node": "VAPI — Outbound Call", "type": "main", "index": 0 }]] },
+    "VAPI — Outbound Call": { "main": [[{ "node": "Mark as Called in Sheets", "type": "main", "index": 0 }]] },
+    "Mark as Called in Sheets": { "main": [[{ "node": "Wait 60s Before Next Lead", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
