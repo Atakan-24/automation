@@ -28,7 +28,7 @@
 1. Create a new Google Sheet at sheets.google.com
 2. Name it: `Team Gold Leads`
 3. Create two tabs:
-   - `Leads` — columns: business_name, phone, industry, city, state, has_website, preview_url, status, call_id, called_at, outcome, meeting_booked, added_at
+   - `Leads` — columns: business_name, phone, industry, city, state, address, has_website, rating, reviews_count, place_id, preview_url, status, call_id, called_at, outcome, meeting_booked, added_at
    - `Call Results` — columns: call_id, phone, business_name, duration_seconds, ended_reason, summary, transcript, timestamp
 4. Copy the Sheet ID from the URL and replace all `REPLACE_WITH_GOOGLE_SHEET_ID`
 
