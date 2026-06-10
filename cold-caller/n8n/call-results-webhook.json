@@ -1,11 +1,12 @@
 {
-  "name": "VAPI Call Results \u2014 Save to Google Sheets",
+  "name": "VAPI Call Results — Internal Tracking",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "vapi-call-results",
-        "options": {}
+        "options": {},
+        "responseMode": "onReceived"
       },
       "id": "node-webhook",
       "name": "Receive VAPI Results",
@@ -57,60 +58,52 @@
     },
     {
       "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Call Results",
-          "mode": "name"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "call_id": "={{ $json.call_id }}",
-            "phone": "={{ $json.phone }}",
-            "business_name": "={{ $json.business_name }}",
-            "industry": "={{ $json.industry }}",
-            "city": "={{ $json.city }}",
-            "rating": "={{ $json.rating }}",
-            "reviews_count": "={{ $json.reviews_count }}",
-            "duration_seconds": "={{ $json.duration_seconds }}",
-            "ended_reason": "={{ $json.ended_reason }}",
-            "outcome": "={{ $json.outcome }}",
-            "summary": "={{ $json.summary }}",
-            "transcript": "={{ $json.transcript }}",
-            "timestamp": "={{ $json.timestamp }}"
-          },
-          "schema": []
-        },
-        "options": {}
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.callResults) staticData.callResults = [];\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json;\n  if (staticData.callResults.length >= 500) staticData.callResults = staticData.callResults.slice(-400);\n  staticData.callResults.push({\n    call_id: j.call_id || '',\n    phone: j.phone || '',\n    business_name: j.business_name || '',\n    outcome: j.outcome || '',\n    duration_seconds: j.duration_seconds || 0,\n    summary: (j.summary || '').substring(0, 500),\n    transcript: (j.transcript || '').substring(0, 2000),\n    removed_from_list: j.removed_from_list === true,\n    timestamp: new Date().toISOString()\n  });\n  out.push({ json: j });\n}\nreturn out;",
+        "mode": "runOnceForAllItems"
       },
-      "id": "node-save",
-      "name": "Save to Call Results Sheet",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
+      "id": "node-save-internal",
+      "name": "Save Result (Internal)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        780,
-        300
-      ],
-      "credentials": {
-        "googleApi": {
-          "id": "f3kxGuGdAhr7J8iI",
-          "name": "Google Sheets Service Account"
-        }
-      }
+        860,
+        400
+      ]
     },
     {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/pipeline-record-result",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: $json.phone, outcome: $json.outcome, duration_seconds: $json.duration_seconds, summary: $json.summary, removed_from_list: $json.removed_from_list === true }) }}",
+        "options": {}
+      },
+      "id": "node-forward",
+      "name": "Update Pipeline Lead Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1080,
+        400
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "node-if-booking",
+      "name": "Meeting or Callback?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        400
+      ],
       "parameters": {
         "conditions": {
           "conditions": [
             {
-              "id": "check-removed",
-              "leftValue": "={{ $json.removed_from_list }}",
+              "id": "c1",
+              "leftValue": "={{ $json.outcome === 'meeting_booked' || $json.outcome === 'callback_requested' }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -118,69 +111,27 @@
               }
             }
           ]
-        }
-      },
-      "id": "node-check-removed",
-      "name": "Asked to be Removed?",
-      "type": "n8n-nodes-base.filter",
-      "typeVersion": 2,
-      "position": [
-        780,
-        500
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "value": "1BTrTjm1vTC9o9041AvLAPwu_hgEzOssFCP0esgSono0",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Blacklist",
-          "mode": "name"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "phone": "={{ $json.phone }}",
-            "business_name": "={{ $json.business_name }}",
-            "reason": "removed_from_list",
-            "added_at": "={{ $json.timestamp }}"
-          },
-          "schema": []
         },
         "options": {}
-      },
-      "id": "node-blacklist",
-      "name": "Add to Blacklist",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [
-        980,
-        500
-      ],
-      "credentials": {
-        "googleApi": {
-          "id": "f3kxGuGdAhr7J8iI",
-          "name": "Google Sheets Service Account"
-        }
       }
     },
     {
-      "parameters": {
-        "options": {}
-      },
-      "id": "node-respond",
-      "name": "Respond to VAPI",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
+      "id": "node-telegram",
+      "name": "Send Telegram Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
       "position": [
-        980,
+        1520,
         300
-      ]
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_BOT_TOKEN/sendMessage",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: REPLACE_TELEGRAM_CHAT_ID, text: ($json.outcome === 'meeting_booked' ? '🎯 MEETING GEBUCHT!' : '📞 Callback gewünscht') + '\\n\\n' + ($json.business_name||'?') + '\\n' + ($json.city||'?') + '\\n' + ($json.phone||'?') + '\\n' + ($json.duration_seconds||0) + 's' }) }}",
+        "options": {}
+      }
     }
   ],
   "connections": {
@@ -210,38 +161,45 @@
       "main": [
         [
           {
-            "node": "Save to Call Results Sheet",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Asked to be Removed?",
+            "node": "Save Result (Internal)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Save to Call Results Sheet": {
+    "Save Result (Internal)": {
       "main": [
         [
           {
-            "node": "Respond to VAPI",
+            "node": "Update Pipeline Lead Status",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Asked to be Removed?": {
+    "Update Pipeline Lead Status": {
       "main": [
         [
           {
-            "node": "Add to Blacklist",
+            "node": "Meeting or Callback?",
             "type": "main",
             "index": 0
           }
         ]
+      ]
+    },
+    "Meeting or Callback?": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     }
   },
