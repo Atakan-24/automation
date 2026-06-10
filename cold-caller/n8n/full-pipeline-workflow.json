@@ -324,6 +324,86 @@
         420,
         1000
       ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "sched-followup",
+      "name": "Run Daily 10am Follow-up",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        180,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst leads = staticData.leads || [];\nconst called = staticData.calledNumbers || {};\nconst threeDaysAgo = Date.now() - 3*24*60*60*1000;\n\nconst due = leads.filter(l =>\n  l.status === 'called' &&\n  ['no_answer','voicemail',''].includes(l.outcome || '') &&\n  !l.follow_up_sent &&\n  l.called_at && new Date(l.called_at).getTime() < threeDaysAgo &&\n  called[(l.phone||'').replace(/\\D/g,'').replace(/^1/,'')] !== 'BLACKLISTED'\n).slice(0, 5);\n\nreturn due.map(l => ({ json: l }));"
+      },
+      "id": "code-followup-find",
+      "name": "Find No-Answer Leads (3+ Days)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.vapi.ai/call/phone",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_WITH_VAPI_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify({ phoneNumberId: 'e1be79b3-b1c3-42a4-a744-b298be092b26', assistantId: 'bdcc6edf-095f-4cdc-93d5-a138be0b1c0b', customer: { number: '+1' + $json.phone.replace(/\\D/g,''), name: $json.business_name }, assistantOverrides: { variableValues: { business_name: $json.business_name, industry: $json.industry, city: $json.city, rating: String($json.rating || ''), reviews_count: String($json.reviews_count || '0'), top_review: '', preview_url: $json.preview_url || '' } } }) }}",
+        "options": {}
+      },
+      "id": "http-followup-call",
+      "name": "VAPI — Follow-up Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        660,
+        1200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst leads = staticData.leads || [];\nconst due = $('Find No-Answer Leads (3+ Days)').all().map(i => i.json);\nconst out = [];\nfor (const lead of due) {\n  const phone = (lead.phone || '').replace(/\\D/g,'').replace(/^1/,'');\n  const idx = leads.findIndex(l => (l.phone||'').replace(/\\D/g,'').replace(/^1/,'') === phone);\n  if (idx >= 0) {\n    leads[idx].follow_up_sent = true;\n    leads[idx].follow_up_at = new Date().toISOString();\n  }\n  out.push({ json: { ok: true, phone } });\n}\nreturn out.length ? out : [{ json: { ok: true, count: 0 } }];"
+      },
+      "id": "code-followup-mark",
+      "name": "Mark Follow-up Sent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        1200
+      ]
     }
   ],
   "connections": {
@@ -475,6 +555,39 @@
         [
           {
             "node": "Build Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Daily 10am Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Find No-Answer Leads (3+ Days)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find No-Answer Leads (3+ Days)": {
+      "main": [
+        [
+          {
+            "node": "VAPI — Follow-up Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VAPI — Follow-up Call": {
+      "main": [
+        [
+          {
+            "node": "Mark Follow-up Sent",
             "type": "main",
             "index": 0
           }
