@@ -90,32 +90,6 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "node-if-booking",
-      "name": "Meeting or Callback?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        1300,
-        400
-      ],
-      "parameters": {
-        "conditions": {
-          "conditions": [
-            {
-              "id": "c1",
-              "leftValue": "={{ $json.outcome === 'meeting_booked' || $json.outcome === 'callback_requested' }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ]
-        },
-        "options": {}
-      }
-    },
-    {
       "id": "node-telegram",
       "name": "Send Telegram Alert",
       "type": "n8n-nodes-base.httpRequest",
@@ -125,13 +99,38 @@
         300
       ],
       "parameters": {
-        "method": "POST",
-        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_BOT_TOKEN/sendMessage",
-        "sendBody": true,
-        "contentType": "json",
-        "jsonBody": "={{ JSON.stringify({ chat_id: REPLACE_TELEGRAM_CHAT_ID, text: ($json.outcome === 'meeting_booked' ? '🎯 MEETING GEBUCHT!' : '📞 Callback gewünscht') + '\\n\\n' + ($json.business_name||'?') + '\\n' + ($json.city||'?') + '\\n' + ($json.phone||'?') + '\\n' + ($json.duration_seconds||0) + 's' }) }}",
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.tg_text }}"
+            }
+          ]
+        },
         "options": {}
-      }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const src = $('Save Result (Internal)').all();\nconst out = [];\nfor (const item of src) {\n  const j = item.json;\n  let head;\n  if (j.outcome === 'meeting_booked') head = 'MEETING GEBUCHT!!!';\n  else if (j.outcome === 'callback_requested') head = 'Callback gewuenscht';\n  else if (j.outcome === 'voicemail') head = 'Voicemail hinterlassen';\n  else if (j.outcome === 'no_answer') head = 'Nicht erreicht';\n  else head = 'Anruf beendet: ' + (j.outcome || '?');\n\n  let text = head + '\\n\\n' + (j.business_name || '?') + '\\n' + (j.phone || '') + '\\nDauer: ' + (j.duration_seconds || 0) + 's';\n  if (j.summary && j.outcome === 'meeting_booked') text += '\\n\\n' + String(j.summary).substring(0, 200);\n\n  out.push({ json: { tg_text: text } });\n}\nreturn out;"
+      },
+      "id": "node-tg-builder",
+      "name": "Build TG Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        400
+      ]
     }
   ],
   "connections": {
@@ -183,14 +182,14 @@
       "main": [
         [
           {
-            "node": "Meeting or Callback?",
+            "node": "Build TG Message",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Meeting or Callback?": {
+    "Build TG Message": {
       "main": [
         [
           {
@@ -198,12 +197,12 @@
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "errorWorkflow": "DHlyso6CqDknJfBz"
   }
 }

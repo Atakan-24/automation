@@ -405,6 +405,265 @@
         900,
         1200
       ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nconst text = 'PIPELINE GESTARTET (' + new Date().toLocaleString('de-DE') + ')\\n\\nSuche heute ' + items.length + ' Kombinationen:\\n' + items.map(i => '- ' + i.json.search_query).join('\\n');\nreturn [{ json: { tg_text: text } }];"
+      },
+      "id": "agg-start",
+      "name": "Agg: Start Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.tg_text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-start",
+      "name": "TG: Pipeline Start",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        840,
+        620
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().filter(i => i.json.place_id);\nlet text;\nif (!items.length) {\n  text = 'KEINE Leads ohne Website gefunden in diesem Lauf. Morgen neue Staedte.';\n} else {\n  text = items.length + ' LEADS GEFUNDEN (ohne Website):\\n\\n' + items.map(i => '- ' + i.json.business_name + ' (' + i.json.city + ' ' + i.json.state + ') ' + i.json.phone).join('\\n');\n}\nreturn [{ json: { tg_text: text.substring(0, 3800) } }];"
+      },
+      "id": "agg-filter",
+      "name": "Agg: Filter Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.tg_text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-filter",
+      "name": "TG: Leads Gefunden",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1280,
+        620
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const after = $input.all().filter(i => i.json.place_id).length;\nconst before = $('Filter: No Website + Has Phone').all().filter(i => i.json.place_id).length;\nconst skipped = before - after;\nconst text = 'DUPLIKAT-CHECK:\\n' + after + ' neue Leads (' + skipped + ' schon kontaktiert, uebersprungen)';\nreturn [{ json: { tg_text: text } }];"
+      },
+      "id": "agg-dedup",
+      "name": "Agg: Dedup Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.tg_text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-dedup",
+      "name": "TG: Dedup Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1280,
+        760
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "=LEAD GESPEICHERT\n\n{{ $json.business_name }}\n{{ $json.city }} {{ $json.state }}\n{{ $json.phone }}\nRating: {{ $json.rating }} ({{ $json.reviews_count }} Reviews)\nBranche: {{ $json.industry }}\nPreview: {{ $json.preview_url }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-saved",
+      "name": "TG: Lead Gespeichert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1500,
+        620
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "=WHATSAPP SCHRITT\n\nFuer: {{ $('Save Lead (Internal)').item.json.business_name }}\nStatus: {{ $json.error ? 'FEHLER (Twilio nicht konfiguriert)' : 'Gesendet' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-wa",
+      "name": "TG: WhatsApp Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1720,
+        620
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "=RYAN RUFT JETZT AN\n\n{{ $('Enrich + Generate Preview & Message').item.json.business_name }}\n{{ $('Enrich + Generate Preview & Message').item.json.phone }}\nCall-ID: {{ $json.id || 'FEHLER: ' + ($json.error ? JSON.stringify($json.error).substring(0,100) : '?') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-vapi",
+      "name": "TG: Ryan Ruft An",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1940,
+        620
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().filter(i => i.json.phone);\nconst text = items.length\n  ? 'FOLLOW-UP LAEUFT: ' + items.length + ' Leads werden nochmal angerufen:\\n' + items.map(i => '- ' + i.json.business_name).join('\\n')\n  : 'Follow-up Check: keine Leads faellig heute.';\nreturn [{ json: { tg_text: text } }];"
+      },
+      "id": "agg-fu",
+      "name": "Agg: Follow-up Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        1340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.tg_text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-fu",
+      "name": "TG: Follow-up Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        840,
+        1340
+      ],
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -424,6 +683,11 @@
         [
           {
             "node": "Google Places — Find Businesses",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Agg: Start Info",
             "type": "main",
             "index": 0
           }
@@ -448,6 +712,11 @@
             "node": "Skip If Already Called",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Agg: Filter Info",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -457,6 +726,11 @@
         [
           {
             "node": "Get Place Details (Rating + Reviews)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Agg: Dedup Info",
             "type": "main",
             "index": 0
           }
@@ -492,6 +766,11 @@
             "node": "Send WhatsApp with Draft Link",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "TG: Lead Gespeichert",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -501,6 +780,11 @@
         [
           {
             "node": "Wait 2 Minutes",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TG: WhatsApp Status",
             "type": "main",
             "index": 0
           }
@@ -523,6 +807,11 @@
         [
           {
             "node": "Mark as Called",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TG: Ryan Ruft An",
             "type": "main",
             "index": 0
           }
@@ -580,6 +869,11 @@
             "node": "VAPI — Follow-up Call",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Agg: Follow-up Info",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -594,9 +888,54 @@
           }
         ]
       ]
+    },
+    "Agg: Start Info": {
+      "main": [
+        [
+          {
+            "node": "TG: Pipeline Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agg: Filter Info": {
+      "main": [
+        [
+          {
+            "node": "TG: Leads Gefunden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agg: Dedup Info": {
+      "main": [
+        [
+          {
+            "node": "TG: Dedup Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agg: Follow-up Info": {
+      "main": [
+        [
+          {
+            "node": "TG: Follow-up Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "errorWorkflow": "DHlyso6CqDknJfBz"
   }
 }
