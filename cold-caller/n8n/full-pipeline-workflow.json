@@ -172,7 +172,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.twilio.com/2010-04-01/Accounts/REPLACE_WITH_TWILIO_ACCOUNT_SID/Messages.json",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/TWILIO_ACCOUNT_SID/Messages.json",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBasicAuth",
         "sendBody": true,
@@ -181,7 +181,7 @@
           "parameters": [
             {
               "name": "From",
-              "value": "+REPLACE_WITH_TWILIO_PHONE_NUMBER"
+              "value": "+19129376819"
             },
             {
               "name": "To",
@@ -196,14 +196,20 @@
         "options": {}
       },
       "id": "node-whatsapp",
-      "name": "Send WhatsApp with Draft Link",
+      "name": "Send SMS with Demo Link",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
         1800,
         400
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "zOnSyynZ4phmT2md",
+          "name": "Twilio SMS (Team Gold)"
+        }
+      }
     },
     {
       "parameters": {
@@ -797,7 +803,7 @@
       "main": [
         [
           {
-            "node": "Send WhatsApp with Draft Link",
+            "node": "Send SMS with Demo Link",
             "type": "main",
             "index": 0
           },
@@ -808,17 +814,6 @@
           },
           {
             "node": "Wait 2 Minutes",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Send WhatsApp with Draft Link": {
-      "main": [
-        [
-          {
-            "node": "TG: WhatsApp Status",
             "type": "main",
             "index": 0
           }
@@ -983,6 +978,17 @@
         [
           {
             "node": "VAPI — Outbound Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS with Demo Link": {
+      "main": [
+        [
+          {
+            "node": "TG: WhatsApp Status",
             "type": "main",
             "index": 0
           }
