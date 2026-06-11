@@ -87,7 +87,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.calledNumbers) staticData.calledNumbers = {};\nif (!staticData.calledPlaces) staticData.calledPlaces = {};\nif (!staticData.leads) staticData.leads = [];\nconst out = [];\nfor (const item of $input.all()) {\n  const lead = $('Enrich + Generate Preview & Message').all()[out.length] ? $('Enrich + Generate Preview & Message').all()[out.length].json : item.json;\n  const phone = (lead.phone || '').replace(/\\D/g, '');\n  const placeId = lead.place_id || '';\n  const now = new Date().toISOString();\n  if (phone) staticData.calledNumbers[phone] = now;\n  if (placeId) staticData.calledPlaces[placeId] = now;\n  const idx = staticData.leads.findIndex(l => (l.phone||'').replace(/\\D/g,'') === phone);\n  if (idx >= 0) {\n    staticData.leads[idx].status = 'called';\n    staticData.leads[idx].called_at = now;\n  }\n  out.push({ json: { ...item.json, phone, place_id: placeId } });\n}\nreturn out;"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.calledNumbers) staticData.calledNumbers = {};\nif (!staticData.calledPlaces) staticData.calledPlaces = {};\nif (!staticData.leads) staticData.leads = [];\nconst payloads = $('Build VAPI Payload').all();\nconst out = [];\nconst all = $input.all();\nfor (let i = 0; i < all.length; i++) {\n  const resp = all[i].json;\n  const lead = (payloads[i] || {}).json || {};\n  const callOk = !!resp.id && !resp.error;\n  const phone = (lead.phone || '').replace(/\\D/g, '');\n  const placeId = lead.place_id || '';\n  const now = new Date().toISOString();\n  if (callOk && phone) staticData.calledNumbers[phone] = now;\n  if (callOk && placeId) staticData.calledPlaces[placeId] = now;\n  if (callOk) {\n    const idx = staticData.leads.findIndex(l => (l.phone||'').replace(/\\D/g,'') === phone);\n    if (idx >= 0) { staticData.leads[idx].status = 'called'; staticData.leads[idx].called_at = now; }\n  }\n  out.push({ json: { call_ok: callOk, call_id: resp.id || '', business_name: lead.business_name || '', phone } });\n}\nreturn out;"
       }
     },
     {
@@ -250,7 +250,8 @@
       "position": [
         2060,
         400
-      ]
+      ],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -608,7 +609,7 @@
             },
             {
               "name": "text",
-              "value": "=RYAN RUFT JETZT AN\n\n{{ $('Enrich + Generate Preview & Message').item.json.business_name }}\n{{ $('Enrich + Generate Preview & Message').item.json.phone }}\nCall-ID: {{ $json.id || 'FEHLER: ' + ($json.error ? JSON.stringify($json.error).substring(0,100) : '?') }}"
+              "value": "=RYAN RUFT JETZT AN\n\n{{ $('Build VAPI Payload').item.json.business_name }}\n{{ $('Build VAPI Payload').item.json.phone }}\nCall-ID: {{ $json.id || 'FEHLER: ' + ($json.error ? JSON.stringify($json.error).substring(0,100) : 'unbekannt') }}"
             }
           ]
         },
@@ -687,7 +688,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  const l = item.json;\n  const payload = {\n    phoneNumberId: 'e1be79b3-b1c3-42a4-a744-b298be092b26',\n    assistantId: 'bdcc6edf-095f-4cdc-93d5-a138be0b1c0b',\n    customer: {\n      number: '+1' + String(l.phone || '').replace(/[^0-9]/g, '').slice(-10),\n      name: l.business_name || ''\n    },\n    assistantOverrides: {\n      variableValues: {\n        business_name: l.business_name || '',\n        industry: l.industry || '',\n        city: l.city || '',\n        rating: String(l.rating || ''),\n        reviews_count: String(l.reviews_count || '0'),\n        top_review: l.top_review || '',\n        preview_url: l.preview_url || ''\n      }\n    }\n  };\n  out.push({ json: { ...l, vapi_body: JSON.stringify(payload) } });\n}\nreturn out;"
+        "jsCode": "const out = [];\nconst MAX_CALLS = 5;\nconst skipped = [];\nfor (const item of $input.all()) {\n  const l = item.json;\n  if (l.error) { skipped.push('err'); continue; }\n  let digits = String(l.phone || '').replace(/[^0-9]/g, '');\n  if (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1);\n  if (digits.length !== 10) { skipped.push(l.business_name || '?'); continue; }\n  if (out.length >= MAX_CALLS) break;\n  const payload = {\n    phoneNumberId: 'e1be79b3-b1c3-42a4-a744-b298be092b26',\n    assistantId: 'bdcc6edf-095f-4cdc-93d5-a138be0b1c0b',\n    customer: { number: '+1' + digits, name: l.business_name || '' },\n    assistantOverrides: {\n      variableValues: {\n        business_name: l.business_name || '',\n        industry: l.industry || '',\n        city: l.city || '',\n        rating: String(l.rating || ''),\n        reviews_count: String(l.reviews_count || '0'),\n        top_review: l.top_review || '',\n        preview_url: l.preview_url || ''\n      }\n    }\n  };\n  out.push({ json: { ...l, phone: digits, vapi_body: JSON.stringify(payload) } });\n}\nreturn out;"
       },
       "id": "node-build-vapi",
       "name": "Build VAPI Payload",
@@ -804,6 +805,11 @@
             "node": "TG: Lead Gespeichert",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Wait 2 Minutes",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -811,11 +817,6 @@
     "Send WhatsApp with Draft Link": {
       "main": [
         [
-          {
-            "node": "Wait 2 Minutes",
-            "type": "main",
-            "index": 0
-          },
           {
             "node": "TG: WhatsApp Status",
             "type": "main",
