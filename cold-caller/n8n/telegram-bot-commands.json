@@ -21,7 +21,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const ALLOWED_CHAT = '5381600986';\nconst upd = $input.first().json.body || $input.first().json;\nconst msg = upd.message || {};\nconst chatId = String((msg.chat || {}).id || '');\nconst text = (msg.text || '').trim().toLowerCase();\n\nif (chatId !== ALLOWED_CHAT) {\n  return [{ json: { action: 'ignore', chat_id: chatId } }];\n}\n\nlet action = 'help';\nif (text === '/start' || text === 'start' || text === '/run' || text === 'los') action = 'start';\nelse if (text === '/bericht' || text === 'bericht' || text === '/report' || text === 'report') action = 'report';\nelse if (text === '/demo' || text === 'demo' || text === 'testanruf') action = 'demo';\nelse if (text === '/status' || text === 'status') action = 'status';\n\nreturn [{ json: { action, chat_id: chatId, text } }];"
+        "jsCode": "const ALLOWED_CHAT = '5381600986';\nconst upd = $input.first().json.body || $input.first().json;\nconst msg = upd.message || {};\nconst chatId = String((msg.chat || {}).id || '');\nconst text = (msg.text || '').trim().toLowerCase();\n\nif (chatId !== ALLOWED_CHAT) {\n  return [{ json: { action: 'ignore', chat_id: chatId } }];\n}\n\nconst TOGGLES = {\n  '/stop':'stop','stop':'stop',\n  '/resume':'resume','resume':'resume','/weiter':'resume','weiter':'resume',\n  '/anrufe aus':'calls_off','anrufe aus':'calls_off',\n  '/anrufe an':'calls_on','anrufe an':'calls_on',\n  '/sms aus':'sms_off','sms aus':'sms_off',\n  '/sms an':'sms_on','sms an':'sms_on',\n  '/preview aus':'preview_off','preview aus':'preview_off',\n  '/preview an':'preview_on','preview an':'preview_on',\n};\nconst TOGGLE_PAYLOADS = {\n  stop: {module:'paused',enabled:true},\n  resume: {module:'paused',enabled:false},\n  calls_off: {module:'calls',enabled:false},\n  calls_on: {module:'calls',enabled:true},\n  sms_off: {module:'sms',enabled:false},\n  sms_on: {module:'sms',enabled:true},\n  preview_off: {module:'preview',enabled:false},\n  preview_on: {module:'preview',enabled:true},\n};\nconst TOGGLE_MSGS = {\n  stop: 'GESTOPPT. Keine Anrufe mehr bis /resume.',\n  resume: 'AKTIV. Pipeline laeuft wieder normal.',\n  calls_off: 'Anrufe deaktiviert. SMS und Preview laufen weiter.',\n  calls_on: 'Anrufe wieder aktiviert.',\n  sms_off: 'SMS deaktiviert.',\n  sms_on: 'SMS wieder aktiviert.',\n  preview_off: 'Website-Preview deaktiviert.',\n  preview_on: 'Website-Preview wieder aktiviert.',\n};\n\nlet action = 'ai';\nif (text === '/start' || text === 'start' || text === '/run' || text === 'los') action = 'start';\nelse if (text === '/bericht' || text === 'bericht' || text === '/report' || text === 'report') action = 'report';\nelse if (text === '/demo' || text === 'demo' || text === 'testanruf') action = 'demo';\nelse if (text === '/status' || text === 'status') action = 'status';\nelse if (TOGGLES[text]) action = TOGGLES[text];\nelse if (text.startsWith('/')) action = 'help';\n\nconst togglePayload = TOGGLE_PAYLOADS[action] ? JSON.stringify(TOGGLE_PAYLOADS[action]) : '{}';\nconst toggleMsg = TOGGLE_MSGS[action] || '';\n\nreturn [{ json: { action, chat_id: chatId, text, toggle_payload: togglePayload, toggle_msg: toggleMsg } }];"
       },
       "id": "code-parse",
       "name": "Befehl Erkennen",
@@ -290,6 +290,247 @@
         400
       ],
       "onError": "continueRegularOutput"
+    },
+    {
+      "id": "if-toggle",
+      "name": "Ist Toggle-Befehl?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        540
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.toggle_msg }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "http-toggle",
+      "name": "Toggle Ausführen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        460
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/toggle-module",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.toggle_payload }}",
+        "options": {
+          "timeout": 5000
+        }
+      }
+    },
+    {
+      "id": "tg-toggle",
+      "name": "TG: Toggle Bestaetigt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1740,
+        460
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "5381600986"
+            },
+            {
+              "name": "text",
+              "value": "={{ $('Befehl Erkennen').first().json.toggle_msg }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "http-status",
+      "name": "Status Abrufen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        600
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/get-status",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "{}",
+        "options": {
+          "timeout": 5000
+        }
+      }
+    },
+    {
+      "id": "tg-status",
+      "name": "TG: Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1740,
+        600
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "5381600986"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.status_text || 'Status nicht verfuegbar' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "http-groq",
+      "name": "Groq AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        740
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer GROQ_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  model: 'llama-3.3-70b-versatile',\n  max_tokens: 400,\n  messages: [\n    { role: 'system', content: 'Du bist der Assistent fuer ein automatisches Cold-Calling-System. Der User steuert das System per Telegram. Aktuelle Einstellungen werden als JSON uebergeben. Antworte IMMER mit JSON in diesem Format: {\"actions\":[{\"action\":\"set_industry\",\"value\":\"...\"}],\"reply\":\"Deine Antwort auf Deutsch\"}. Erlaubte actions: set_industry (string), set_cities (array), set_max_calls (number), add_city (string), remove_city (string), set_paused (boolean), set_module ({module,enabled}), explain_status. Wenn nur eine Frage gestellt wird ohne Aenderung: leeres actions-Array.' },\n    { role: 'user', content: $json.text }\n  ]\n}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "code-ai-action",
+      "name": "AI Aktion Ausfuehren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        740
+      ],
+      "parameters": {
+        "jsCode": "let reply = '';\nlet actions = [];\ntry {\n  const resp = $input.first().json;\n  const content = resp.choices?.[0]?.message?.content || '{}';\n  const parsed = JSON.parse(content.trim());\n  reply = parsed.reply || 'Erledigt.';\n  actions = parsed.actions || [];\n} catch(e) {\n  reply = 'Ich habe deine Nachricht nicht ganz verstanden. Versuche: /status, /stop, /resume, /anrufe aus, /sms aus';\n}\n\n// Apply actions via toggle webhook (fire-and-forget approach — just build confirmation text)\nconst actionLabels = {\n  set_industry: (v) => 'Branche gesetzt auf: ' + v,\n  set_cities: (v) => 'Staedte gesetzt auf: ' + v.join(', '),\n  set_max_calls: (v) => 'Max Anrufe pro Tag: ' + v,\n  add_city: (v) => 'Stadt hinzugefuegt: ' + v,\n  remove_city: (v) => 'Stadt entfernt: ' + v,\n  set_paused: (v) => v ? 'Pipeline gestoppt' : 'Pipeline gestartet',\n};\n\nreturn [{ json: { tg_text: reply } }];"
+      }
+    },
+    {
+      "id": "tg-ai",
+      "name": "TG: AI Antwort",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1960,
+        740
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "5381600986"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.tg_text }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "if-status",
+      "name": "Ist Status-Befehl?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        640
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "status",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
     }
   ],
   "connections": {
@@ -373,7 +614,7 @@
         ],
         [
           {
-            "node": "TG: Hilfe",
+            "node": "Ist Toggle-Befehl?",
             "type": "main",
             "index": 0
           }
@@ -385,6 +626,86 @@
         [
           {
             "node": "TG: Demo Bestaetigt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ist Toggle-Befehl?": {
+      "main": [
+        [
+          {
+            "node": "Toggle Ausführen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ist Status-Befehl?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Toggle Ausführen": {
+      "main": [
+        [
+          {
+            "node": "TG: Toggle Bestaetigt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status Abrufen": {
+      "main": [
+        [
+          {
+            "node": "TG: Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq AI": {
+      "main": [
+        [
+          {
+            "node": "AI Aktion Ausfuehren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Aktion Ausfuehren": {
+      "main": [
+        [
+          {
+            "node": "TG: AI Antwort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ist Status-Befehl?": {
+      "main": [
+        [
+          {
+            "node": "Status Abrufen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Groq AI",
             "type": "main",
             "index": 0
           }

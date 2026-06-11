@@ -157,7 +157,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const configItems = $('Skip If Already Called').all();\nconst detailItems = $input.all();\nconst out = [];\n\nfor (let i = 0; i < detailItems.length; i++) {\n  const details = detailItems[i].json || {};\n  const lead = (configItems[i] || configItems[0]).json;\n\n  const rawPhone = details.nationalPhoneNumber || lead.phone || '';\n  const phone = rawPhone.replace(/\\D/g, '').replace(/^1/, '');\n  if (!phone || phone.length < 10) continue;\n\n  const rating = details.rating || lead.rating || 0;\n  const reviews_count = details.userRatingCount || lead.reviews_count || 0;\n\n  const reviews = details.reviews || [];\n  const top_review = reviews.length > 0 && reviews[0].text && reviews[0].text.text\n    ? reviews[0].text.text.substring(0, 120).replace(/\\n/g, ' ')\n    : '';\n\n  // Echten Rezensenten-Namen finden (Vorname reicht, klingt natuerlicher)\n  let reviewer_name = '';\n  for (const rv of reviews) {\n    const full = rv.authorAttribution && rv.authorAttribution.displayName ? rv.authorAttribution.displayName : '';\n    const first = full.split(' ')[0] || '';\n    // Nur echte Namen, keine Firmen/Kuerzel\n    if (first.length >= 3 && /^[A-Z][a-z]+$/.test(first)) { reviewer_name = first; break; }\n  }\n\n  const is_open = details.currentOpeningHours ? details.currentOpeningHours.openNow : undefined;\n  const hours_note = is_open === true ? 'currently open' : is_open === false ? 'currently closed' : '';\n\n  const qs = 'name=' + encodeURIComponent(lead.business_name) +\n             '&type=' + encodeURIComponent(lead.industry) +\n             '&city=' + encodeURIComponent(lead.city) +\n             '&phone=' + encodeURIComponent(phone);\n  const preview_url = 'https://teamgoldllc.de/preview?' + qs;\n\n  const wa_message = `Hey ${lead.business_name}! Ryan from Team Gold here - we actually built you a FREE website preview. Take a look:\n${preview_url}\n\nLike it? Book a free 15-min call with our developer Atakan and it's yours:\nhttps://cal.com/atakanoztunc/30min\n\nWho we are: https://teamgoldllc.de\nQuestions? WhatsApp us: https://wa.me/201069564012`;\n\n  out.push({ json: { ...lead, phone, rating, reviews_count, top_review,\n    reviewer_name, hours_note, preview_url, wa_message } });\n}\nreturn out.length ? out : [];",
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst previewEnabled = staticData.preview_enabled !== false;\n\nconst configItems = $('Skip If Already Called').all();\nconst detailItems = $input.all();\nconst out = [];\n\nfor (let i = 0; i < detailItems.length; i++) {\n  const details = detailItems[i].json || {};\n  const lead = (configItems[i] || configItems[0]).json;\n\n  const rawPhone = details.nationalPhoneNumber || lead.phone || '';\n  const phone = rawPhone.replace(/\\D/g, '').replace(/^1/, '');\n  if (!phone || phone.length < 10) continue;\n\n  const rating = details.rating || lead.rating || 0;\n  const reviews_count = details.userRatingCount || lead.reviews_count || 0;\n\n  const reviews = details.reviews || [];\n  const top_review = reviews.length > 0 && reviews[0].text && reviews[0].text.text\n    ? reviews[0].text.text.substring(0, 120).replace(/\\n/g, ' ')\n    : '';\n\n  // Echten Rezensenten-Namen finden (Vorname reicht, klingt natuerlicher)\n  let reviewer_name = '';\n  for (const rv of reviews) {\n    const full = rv.authorAttribution && rv.authorAttribution.displayName ? rv.authorAttribution.displayName : '';\n    const first = full.split(' ')[0] || '';\n    // Nur echte Namen, keine Firmen/Kuerzel\n    if (first.length >= 3 && /^[A-Z][a-z]+$/.test(first)) { reviewer_name = first; break; }\n  }\n\n  const is_open = details.currentOpeningHours ? details.currentOpeningHours.openNow : undefined;\n  const hours_note = is_open === true ? 'currently open' : is_open === false ? 'currently closed' : '';\n\n  const qs = 'name=' + encodeURIComponent(lead.business_name) +\n             '&type=' + encodeURIComponent(lead.industry) +\n             '&city=' + encodeURIComponent(lead.city) +\n             '&phone=' + encodeURIComponent(phone);\n  const preview_url = 'https://teamgoldllc.de/preview?' + qs;\n\n  const wa_message = `Hey ${lead.business_name}! Ryan from Team Gold here - we actually built you a FREE website preview. Take a look:\n${preview_url}\n\nLike it? Book a free 15-min call with our developer Atakan and it's yours:\nhttps://cal.com/atakanoztunc/30min\n\nWho we are: https://teamgoldllc.de\nQuestions? WhatsApp us: https://wa.me/201069564012`;\n\n  out.push({ json: { ...lead, phone, rating, reviews_count, top_review,\n    reviewer_name, hours_note, preview_url, wa_message } });\n}\nreturn out.length ? out : [];",
         "mode": "runOnceForAllItems"
       },
       "id": "node-gen-preview",
@@ -694,7 +694,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const out = [];\nconst MAX_CALLS = 5;\nconst skipped = [];\nfor (const item of $input.all()) {\n  const l = item.json;\n  if (l.error) { skipped.push('err'); continue; }\n  let digits = String(l.phone || '').replace(/[^0-9]/g, '');\n  if (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1);\n  if (digits.length !== 10) { skipped.push(l.business_name || '?'); continue; }\n  if (out.length >= MAX_CALLS) break;\n  const payload = {\n    phoneNumberId: 'f6e18747-7105-471c-b611-68048eeb2a1f',\n    assistantId: 'bdcc6edf-095f-4cdc-93d5-a138be0b1c0b',\n    customer: { number: '+1' + digits, name: l.business_name || '' },\n    assistantOverrides: {\n      variableValues: {\n        business_name: l.business_name || '',\n        industry: l.industry || '',\n        city: l.city || '',\n        rating: String(l.rating || ''),\n        reviews_count: String(l.reviews_count || '0'),\n        top_review: l.top_review || '',\n        reviewer_name: l.reviewer_name || '',\n        preview_url: l.preview_url || ''\n      }\n    }\n  };\n  out.push({ json: { ...l, phone: digits, vapi_body: JSON.stringify(payload) } });\n}\nreturn out;"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (staticData.calls_enabled === false) return [];\n\nconst out = [];\nconst MAX_CALLS = 5;\nconst skipped = [];\nfor (const item of $input.all()) {\n  const l = item.json;\n  if (l.error) { skipped.push('err'); continue; }\n  let digits = String(l.phone || '').replace(/[^0-9]/g, '');\n  if (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1);\n  if (digits.length !== 10) { skipped.push(l.business_name || '?'); continue; }\n  if (out.length >= MAX_CALLS) break;\n  const payload = {\n    phoneNumberId: 'f6e18747-7105-471c-b611-68048eeb2a1f',\n    assistantId: 'bdcc6edf-095f-4cdc-93d5-a138be0b1c0b',\n    customer: { number: '+1' + digits, name: l.business_name || '' },\n    assistantOverrides: {\n      variableValues: {\n        business_name: l.business_name || '',\n        industry: l.industry || '',\n        city: l.city || '',\n        rating: String(l.rating || ''),\n        reviews_count: String(l.reviews_count || '0'),\n        top_review: l.top_review || '',\n        reviewer_name: l.reviewer_name || '',\n        preview_url: l.preview_url || ''\n      }\n    }\n  };\n  out.push({ json: { ...l, phone: digits, vapi_body: JSON.stringify(payload) } });\n}\nreturn out;"
       },
       "id": "node-build-vapi",
       "name": "Build VAPI Payload",
@@ -704,6 +704,122 @@
         1980,
         300
       ]
+    },
+    {
+      "id": "wh-toggle",
+      "name": "Toggle Module Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        800
+      ],
+      "webhookId": "toggle-module",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "toggle-module",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "code-toggle",
+      "name": "Setze Modul Flag",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        800
+      ],
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst module = body.module;\nconst enabled = body.enabled;\nconst staticData = $getWorkflowStaticData('global');\n\nif (module === 'paused') staticData.paused = !enabled;\nelse if (module === 'calls') staticData.calls_enabled = enabled;\nelse if (module === 'sms') staticData.sms_enabled = enabled;\nelse if (module === 'preview') staticData.preview_enabled = enabled;\n\nreturn [{ json: { success: true, module, enabled,\n  paused: staticData.paused === true,\n  calls_enabled: staticData.calls_enabled !== false,\n  sms_enabled: staticData.sms_enabled !== false,\n  preview_enabled: staticData.preview_enabled !== false\n} }];"
+      }
+    },
+    {
+      "id": "resp-toggle",
+      "name": "Toggle Antwort",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        640,
+        800
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      }
+    },
+    {
+      "id": "wh-status",
+      "name": "Get Status Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        960
+      ],
+      "webhookId": "get-status",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "get-status",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "code-status",
+      "name": "Lese Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        960
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst today = new Date().toISOString().slice(0,10);\nconst dayData = (staticData.dailyCosts || {})[today] || {calls:0, count:0};\nconst todayResults = (staticData.callResults || []).filter(r => (r.timestamp||'').startsWith(today));\n\nconst pipeOk = staticData.paused !== true;\nconst callsOk = staticData.calls_enabled !== false;\nconst smsOk = staticData.sms_enabled !== false;\nconst previewOk = staticData.preview_enabled !== false;\n\nlet text = 'SYSTEM STATUS:\\n\\n';\ntext += 'Pipeline: ' + (pipeOk ? 'AN' : 'GESTOPPT') + '\\n';\ntext += 'Anrufe: ' + (callsOk ? 'AN' : 'AUS') + '\\n';\ntext += 'SMS: ' + (smsOk ? 'AN' : 'AUS') + '\\n';\ntext += 'Website-Preview: ' + (previewOk ? 'AN' : 'AUS') + '\\n';\ntext += '\\nTagesausgaben: $' + (dayData.calls||0).toFixed(2) + '\\n';\ntext += 'Anrufe heute: ' + todayResults.length + '\\n';\ntext += 'Leads gespeichert: ' + (staticData.leads||[]).length + '\\n';\n\nreturn [{ json: { status_text: text } }];"
+      }
+    },
+    {
+      "id": "resp-status",
+      "name": "Status Antwort",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        640,
+        960
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      }
+    },
+    {
+      "id": "code-pause-check",
+      "name": "Pruefe Pause-Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (staticData.paused === true) {\n  // Send Telegram notification\n  return [];\n}\nreturn $input.all();"
+      }
+    },
+    {
+      "id": "code-sms-check",
+      "name": "Pruefe SMS-Flag",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        500
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (staticData.sms_enabled === false) return [];\nreturn $input.all();"
+      }
     }
   ],
   "connections": {
@@ -722,12 +838,7 @@
       "main": [
         [
           {
-            "node": "Google Places — Find Businesses",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Agg: Start Info",
+            "node": "Pruefe Pause-Status",
             "type": "main",
             "index": 0
           }
@@ -803,7 +914,7 @@
       "main": [
         [
           {
-            "node": "Send SMS with Demo Link",
+            "node": "Pruefe SMS-Flag",
             "type": "main",
             "index": 0
           },
@@ -989,6 +1100,72 @@
         [
           {
             "node": "TG: WhatsApp Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pruefe Pause-Status": {
+      "main": [
+        [
+          {
+            "node": "Google Places — Find Businesses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pruefe SMS-Flag": {
+      "main": [
+        [
+          {
+            "node": "Send SMS with Demo Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Toggle Module Webhook": {
+      "main": [
+        [
+          {
+            "node": "Setze Modul Flag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setze Modul Flag": {
+      "main": [
+        [
+          {
+            "node": "Toggle Antwort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Status Webhook": {
+      "main": [
+        [
+          {
+            "node": "Lese Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lese Status": {
+      "main": [
+        [
+          {
+            "node": "Status Antwort",
             "type": "main",
             "index": 0
           }
