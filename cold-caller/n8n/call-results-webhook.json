@@ -1,17 +1,21 @@
 {
-  "name": "VAPI Call Results — Save to Google Sheets",
+  "name": "VAPI Call Results — Internal Tracking",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "vapi-call-results",
-        "options": {}
+        "options": {},
+        "responseMode": "onReceived"
       },
       "id": "node-webhook",
       "name": "Receive VAPI Results",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 400],
+      "position": [
+        180,
+        400
+      ],
       "webhookId": "vapi-call-results"
     },
     {
@@ -28,76 +32,177 @@
               }
             }
           ]
-        },
-        "options": {}
+        }
       },
       "id": "node-filter",
       "name": "Only End-of-Call Events",
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2,
-      "position": [420, 400]
+      "position": [
+        380,
+        400
+      ]
     },
     {
       "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Call Results",
-          "mode": "name"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "call_id": "={{ $json.body?.message?.call?.id }}",
-            "phone": "={{ $json.body?.message?.call?.customer?.number }}",
-            "business_name": "={{ $json.body?.message?.call?.customer?.name }}",
-            "duration_seconds": "={{ $json.body?.message?.durationSeconds }}",
-            "ended_reason": "={{ $json.body?.message?.endedReason }}",
-            "summary": "={{ $json.body?.message?.summary }}",
-            "transcript": "={{ $json.body?.message?.transcript }}",
-            "timestamp": "={{ new Date().toISOString() }}"
-          },
-          "schema": []
-        },
+        "jsCode": "const msg = $json.body?.message || {};\nconst call = msg.call || {};\nconst vars = call.assistantOverrides?.variableValues || {};\nconst analysis = msg.analysis || {};\nconst structured = analysis.structuredData || {};\n\n// Extract outcome: try structuredData first, then infer from endedReason\nlet outcome = structured.outcome || '';\nif (!outcome) {\n  const reason = msg.endedReason || '';\n  const dur = msg.durationSeconds || 0;\n  if (reason.includes('voicemail') || reason.includes('machine')) outcome = 'voicemail';\n  else if (reason.includes('no-answer') || dur < 10) outcome = 'no_answer';\n  else outcome = 'completed';\n}\n\n// Check if customer asked to be removed\nconst transcript = (msg.transcript || '').toLowerCase();\nconst removed = transcript.includes('remove me') || transcript.includes('do not call') || outcome === 'removed_from_list';\nif (removed) outcome = 'removed_from_list';\n\nreturn [{ json: {\n  call_id: call.id || '',\n  phone: (call.customer?.number || '').replace(/\\D/g,'').replace(/^1/,''),\n  business_name: call.customer?.name || vars.business_name || '',\n  industry: vars.industry || '',\n  city: vars.city || '',\n  rating: vars.rating || '',\n  reviews_count: vars.reviews_count || '',\n  duration_seconds: msg.durationSeconds || 0,\n  ended_reason: msg.endedReason || '',\n  outcome: outcome,\n  removed_from_list: removed,\n  summary: analysis.summary || '',\n  transcript: (msg.transcript || '').substring(0, 2000),\n  timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "node-extract",
+      "name": "Extract Call Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        580,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.callResults) staticData.callResults = [];\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json;\n  if (staticData.callResults.length >= 500) staticData.callResults = staticData.callResults.slice(-400);\n  staticData.callResults.push({\n    call_id: j.call_id || '',\n    phone: j.phone || '',\n    business_name: j.business_name || '',\n    outcome: j.outcome || '',\n    duration_seconds: j.duration_seconds || 0,\n    summary: (j.summary || '').substring(0, 500),\n    transcript: (j.transcript || '').substring(0, 2000),\n    removed_from_list: j.removed_from_list === true,\n    timestamp: new Date().toISOString()\n  });\n  out.push({ json: j });\n}\nreturn out;",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "node-save-internal",
+      "name": "Save Result (Internal)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/pipeline-record-result",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: $json.phone, outcome: $json.outcome, duration_seconds: $json.duration_seconds, summary: $json.summary, removed_from_list: $json.removed_from_list === true }) }}",
         "options": {}
       },
-      "id": "node-save",
-      "name": "Save to Call Results Sheet",
-      "type": "n8n-nodes-base.googleSheets",
+      "id": "node-forward",
+      "name": "Update Pipeline Lead Status",
+      "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [640, 400]
+      "position": [
+        1080,
+        400
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "node-telegram",
+      "name": "Send Telegram Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1520,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.tg_text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "{ \"status\": \"received\" }",
-        "options": {}
+        "mode": "runOnceForAllItems",
+        "jsCode": "const src = $('Save Result (Internal)').all();\nconst out = [];\nfor (const item of src) {\n  const j = item.json;\n  let head;\n  if (j.outcome === 'meeting_booked') head = 'MEETING GEBUCHT!!!';\n  else if (j.outcome === 'callback_requested') head = 'Callback gewuenscht';\n  else if (j.outcome === 'voicemail') head = 'Voicemail hinterlassen';\n  else if (j.outcome === 'no_answer') head = 'Nicht erreicht';\n  else head = 'Anruf beendet: ' + (j.outcome || '?');\n\n  let text = head + '\\n\\n' + (j.business_name || '?') + '\\n' + (j.phone || '') + '\\nDauer: ' + (j.duration_seconds || 0) + 's';\n  if (j.summary && j.outcome === 'meeting_booked') text += '\\n\\n' + String(j.summary).substring(0, 200);\n\n  out.push({ json: { tg_text: text } });\n}\nreturn out;"
       },
-      "id": "node-respond",
-      "name": "Respond to VAPI",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
-      "position": [860, 400]
+      "id": "node-tg-builder",
+      "name": "Build TG Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        400
+      ]
     }
   ],
   "connections": {
     "Receive VAPI Results": {
-      "main": [[{"node": "Only End-of-Call Events", "type": "main", "index": 0}]]
+      "main": [
+        [
+          {
+            "node": "Only End-of-Call Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Only End-of-Call Events": {
-      "main": [[{"node": "Save to Call Results Sheet", "type": "main", "index": 0}]]
+      "main": [
+        [
+          {
+            "node": "Extract Call Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Save to Call Results Sheet": {
-      "main": [[{"node": "Respond to VAPI", "type": "main", "index": 0}]]
+    "Extract Call Data": {
+      "main": [
+        [
+          {
+            "node": "Save Result (Internal)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Result (Internal)": {
+      "main": [
+        [
+          {
+            "node": "Update Pipeline Lead Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Pipeline Lead Status": {
+      "main": [
+        [
+          {
+            "node": "Build TG Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build TG Message": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
-    "executionOrder": "v1"
-  },
-  "tags": []
+    "executionOrder": "v1",
+    "errorWorkflow": "DHlyso6CqDknJfBz"
+  }
 }

@@ -2,90 +2,145 @@
   "name": "Team Gold — Full Pipeline (Leads → Draft → Call → Track)",
   "nodes": [
     {
-      "parameters": {
-        "rule": {
-          "interval": [{ "field": "cronExpression", "expression": "0 9 * * 1-5" }]
-        }
-      },
       "id": "node-schedule",
       "name": "Run Daily 9am (Mon-Fri)",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1,
-      "position": [180, 400]
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        400
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
+        }
+      }
     },
     {
-      "parameters": {
-        "jsCode": "// CONFIGURE THESE\nconst INDUSTRIES = ['plumber', 'electrician', 'hvac contractor', 'roofer', 'painter'];\nconst CITIES = ['Austin TX', 'Houston TX', 'Dallas TX', 'Phoenix AZ', 'Las Vegas NV'];\nconst LEADS_PER_RUN = 10;\n\n// Pick a random city and industry for this run\nconst city = CITIES[Math.floor(Math.random() * CITIES.length)];\nconst industry = INDUSTRIES[Math.floor(Math.random() * INDUSTRIES.length)];\n\nreturn [{ json: { city, industry, leads_per_run: LEADS_PER_RUN, search_query: industry + ' in ' + city } }];"
-      },
       "id": "node-config",
-      "name": "Set Target City & Industry",
+      "name": "Set Config & Target",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [380, 400]
+      "position": [
+        420,
+        400
+      ],
+      "parameters": {
+        "jsCode": "// Proven high-yield combos (tested: 20-60% leads without website)\nconst CITIES = [\n  'Laredo TX','Lubbock TX','Corpus Christi TX','Little Rock AR','Wichita KS',\n  'Milwaukee WI','Fresno CA','Modesto CA','Bakersfield CA','Stockton CA',\n  'Baton Rouge LA','Shreveport LA','Jackson MS','Huntsville AL','Mobile AL',\n  'Amarillo TX','Beaumont TX','Midland TX','Brownsville TX','Killeen TX',\n  'Savannah GA','Macon GA','Augusta GA','Columbus GA','Albany GA',\n  'Fayetteville NC','Greenville SC','Columbia SC','Spartanburg SC','Knoxville TN',\n  'Chattanooga TN','Clarksville TN','Murfreesboro TN','Peoria IL','Rockford IL',\n  'Spokane WA','Tacoma WA','Yakima WA','Salinas CA','Visalia CA',\n  'Gainesville FL','Ocala FL','Cape Coral FL','Lakeland FL','Palm Bay FL'\n];\nconst INDUSTRIES = [\n  'landscaper','handyman','tree service','fence contractor','tile installer',\n  'pest control','house cleaning','pool service','concrete contractor','irrigation repair',\n  'roofer','painter','garage door repair','carpet cleaning','pressure washing',\n  'plumber','electrician','hvac contractor','window cleaning','gutter cleaning'\n];\nconst LEADS_PER_RUN = 5;\n\n// Search 10 random combos per run, take first 5 leads total\nconst seen = new Set();\nconst combos = [];\nwhile (combos.length < 10) {\n  const city = CITIES[Math.floor(Math.random() * CITIES.length)];\n  const industry = INDUSTRIES[Math.floor(Math.random() * INDUSTRIES.length)];\n  const key = city + '|' + industry;\n  if (!seen.has(key)) {\n    seen.add(key);\n    combos.push({ city, industry, leads_per_run: LEADS_PER_RUN, search_query: industry + ' in ' + city });\n  }\n}\nreturn combos.map(c => ({ json: c }));"
+      }
+    },
+    {
+      "id": "node-filter",
+      "name": "Filter: No Website + Has Phone",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const configItems = $('Set Config & Target').all();\nconst results = [];\nconst allInput = $input.all();\n\nfor (let i = 0; i < allInput.length; i++) {\n  const placesResp = allInput[i].json;\n  const cfg = (configItems[i] || configItems[0]).json;\n  const city = cfg.city || '';\n  const industry = cfg.industry || '';\n  const limit = cfg.leads_per_run || 5;\n  const places = placesResp.places || [];\n\n  const leads = places\n    .filter(p => !p.websiteUri && p.nationalPhoneNumber && p.businessStatus !== 'CLOSED_PERMANENTLY')\n    .slice(0, limit)\n    .map(p => ({\n      business_name: (p.displayName && p.displayName.text) || '',\n      phone: p.nationalPhoneNumber.replace(/[^0-9+]/g, ''),\n      address: p.formattedAddress || '',\n      industry,\n      city: city.split(' ')[0],\n      state: city.split(' ')[1] || '',\n      rating: p.rating || 0,\n      reviews_count: p.userRatingCount || 0,\n      place_id: p.id,\n      status: 'new'\n    }));\n  results.push(...leads.map(l => ({ json: l })));\n}\nreturn results.length ? results : [];"
+      }
+    },
+    {
+      "id": "node-check-called",
+      "name": "Skip If Already Called",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst called = staticData.calledNumbers || {};\nconst calledPlaces = staticData.calledPlaces || {};\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json;\n  const phone = (j.phone || '').replace(/\\D/g, '');\n  const placeId = j.place_id || '';\n  if (!phone || phone.length < 7) continue;\n  if (called[phone]) continue;\n  if (placeId && calledPlaces[placeId]) continue;\n  out.push({ json: j });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "node-save-lead",
+      "name": "Save Lead (Internal)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1620,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = [];\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json;\n  if (staticData.leads.length >= 500) staticData.leads = staticData.leads.slice(-400);\n  staticData.leads.push({\n    business_name: j.business_name || '',\n    phone: j.phone || '',\n    industry: j.industry || '',\n    city: j.city || '',\n    rating: j.rating || '',\n    reviews_count: j.reviews_count || 0,\n    place_id: j.place_id || '',\n    preview_url: j.preview_url || '',\n    status: 'new',\n    added_at: new Date().toISOString()\n  });\n  out.push({ json: j });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "node-mark-called",
+      "name": "Mark as Called",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2260,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.calledNumbers) staticData.calledNumbers = {};\nif (!staticData.calledPlaces) staticData.calledPlaces = {};\nif (!staticData.leads) staticData.leads = [];\nconst out = [];\nfor (const item of $input.all()) {\n  const lead = $('Enrich + Generate Preview & Message').all()[out.length] ? $('Enrich + Generate Preview & Message').all()[out.length].json : item.json;\n  const phone = (lead.phone || '').replace(/\\D/g, '');\n  const placeId = lead.place_id || '';\n  const now = new Date().toISOString();\n  if (phone) staticData.calledNumbers[phone] = now;\n  if (placeId) staticData.calledPlaces[placeId] = now;\n  const idx = staticData.leads.findIndex(l => (l.phone||'').replace(/\\D/g,'') === phone);\n  if (idx >= 0) {\n    staticData.leads[idx].status = 'called';\n    staticData.leads[idx].called_at = now;\n  }\n  out.push({ json: { ...item.json, phone, place_id: placeId } });\n}\nreturn out;"
+      }
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "https://maps.googleapis.com/maps/api/place/textsearch/json",
-        "sendQuery": true,
-        "queryParameters": {
+        "method": "POST",
+        "url": "https://places.googleapis.com/v1/places:searchText",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
-            { "name": "query", "value": "={{ $json.search_query }}" },
-            { "name": "key", "value": "REPLACE_WITH_GOOGLE_PLACES_API_KEY" },
-            { "name": "type", "value": "establishment" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Goog-Api-Key",
+              "value": "REPLACE_WITH_GOOGLE_PLACES_API_KEY"
+            },
+            {
+              "name": "X-Goog-FieldMask",
+              "value": "places.id,places.displayName,places.nationalPhoneNumber,places.websiteUri,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus"
+            }
           ]
         },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\"textQuery\": \"{{ $json.search_query }}\", \"maxResultCount\": 20}",
         "options": {}
       },
       "id": "node-places",
       "name": "Google Places — Find Businesses",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [580, 400]
-    },
-    {
-      "parameters": {
-        "jsCode": "const results = $input.item.json.results || [];\nconst city = $('Set Target City & Industry').item.json.city;\nconst industry = $('Set Target City & Industry').item.json.industry;\nconst limit = $('Set Target City & Industry').item.json.leads_per_run;\n\n// Filter: no website, has phone number\nconst leads = results\n  .filter(r => !r.website && r.formatted_phone_number)\n  .slice(0, limit)\n  .map(r => ({\n    business_name: r.name,\n    phone: r.formatted_phone_number.replace(/[^0-9+]/g, ''),\n    address: r.formatted_address || '',\n    industry: industry,\n    city: city.split(' ')[0],\n    state: city.split(' ')[1] || '',\n    has_website: 'no',\n    rating: r.rating || 0,\n    reviews_count: r.user_ratings_total || 0,\n    place_id: r.place_id,\n    status: 'new'\n  }));\n\nif (leads.length === 0) return [];\nreturn leads.map(l => ({ json: l }));"
-      },
-      "id": "node-filter-leads",
-      "name": "Filter: No Website + Has Phone",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [780, 400]
-    },
-    {
-      "parameters": {
-        "operation": "read",
-        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
-        "sheetName": { "__rl": true, "value": "Leads", "mode": "name" },
-        "options": {}
-      },
-      "id": "node-read-existing",
-      "name": "Read Existing Leads",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [980, 300]
-    },
-    {
-      "parameters": {
-        "jsCode": "const newLead = $('Filter: No Website + Has Phone').item.json;\nconst existing = $('Read Existing Leads').all().map(i => i.json);\n\n// Skip if phone OR place_id already in sheet\nconst alreadyContacted = existing.some(row => \n  (row.phone && row.phone === newLead.phone) ||\n  (row.place_id && row.place_id === newLead.place_id)\n);\n\nif (alreadyContacted) {\n  return [];\n}\nreturn [{ json: newLead }];"
-      },
-      "id": "node-dedup",
-      "name": "Skip If Already Called",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1180, 400]
+      "position": [
+        640,
+        400
+      ]
     },
     {
       "parameters": {
         "method": "GET",
-        "url": "https://maps.googleapis.com/maps/api/place/details/json",
-        "sendQuery": true,
-        "queryParameters": {
+        "url": "=https://places.googleapis.com/v1/places/{{ $json.place_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
-            { "name": "place_id", "value": "={{ $json.place_id }}" },
-            { "name": "fields", "value": "rating,user_ratings_total,reviews,opening_hours,business_status" },
-            { "name": "key", "value": "REPLACE_WITH_GOOGLE_PLACES_API_KEY" }
+            {
+              "name": "X-Goog-Api-Key",
+              "value": "REPLACE_WITH_GOOGLE_PLACES_API_KEY"
+            },
+            {
+              "name": "X-Goog-FieldMask",
+              "value": "rating,userRatingCount,reviews,currentOpeningHours,businessStatus,nationalPhoneNumber"
+            }
           ]
         },
         "options": {}
@@ -94,49 +149,25 @@
       "name": "Get Place Details (Rating + Reviews)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1380, 400]
+      "position": [
+        1280,
+        400
+      ],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const lead = $('Skip If Already Called').item.json;\nconst details = $input.item.json.result || {};\n\n// Enrich lead with place details\nconst rating = details.rating || lead.rating || 0;\nconst reviews_count = details.user_ratings_total || lead.reviews_count || 0;\n\n// Get the most recent review text (first 120 chars)\nconst reviews = details.reviews || [];\nconst top_review = reviews.length > 0 \n  ? reviews[0].text.substring(0, 120).replace(/\\n/g, ' ') \n  : '';\n\n// Is business currently open?\nconst is_open = details.opening_hours?.open_now;\nconst hours_note = is_open === true ? 'currently open' : is_open === false ? 'currently closed' : '';\n\n// Build preview URL\nconst base = 'https://teamgoldllc.de/preview';\nconst params = new URLSearchParams({\n  name: lead.business_name,\n  type: lead.industry,\n  city: lead.city,\n  phone: lead.phone\n});\nconst preview_url = base + '?' + params.toString();\n\n// Build personalized WhatsApp message\nlet wa_message;\nif (reviews_count > 0) {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nYou have ${reviews_count} reviews on Google with a ${rating}⭐ rating — clearly doing great work. But we noticed you don't have a website yet.\\n\\nWe put together a free website preview for ${lead.industry}s in ${lead.city}:\\n${preview_url}\\n\\nWant to see how this could bring you more calls? Book a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n} else {\n  wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nWe noticed you don't have a website yet — you're missing out on customers searching for ${lead.industry}s in ${lead.city} on Google.\\n\\nWe put together a free website preview for you:\\n${preview_url}\\n\\nBook a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n}\n\nreturn [{ json: { \n  ...lead, \n  rating, \n  reviews_count,\n  top_review,\n  hours_note,\n  preview_url, \n  wa_message \n} }];"
+        "jsCode": "const configItems = $('Skip If Already Called').all();\nconst detailItems = $input.all();\nconst out = [];\n\nfor (let i = 0; i < detailItems.length; i++) {\n  const details = detailItems[i].json || {};\n  const lead = (configItems[i] || configItems[0]).json;\n\n  const rawPhone = details.nationalPhoneNumber || lead.phone || '';\n  const phone = rawPhone.replace(/\\D/g, '').replace(/^1/, '');\n  if (!phone || phone.length < 10) continue;\n\n  const rating = details.rating || lead.rating || 0;\n  const reviews_count = details.userRatingCount || lead.reviews_count || 0;\n\n  const reviews = details.reviews || [];\n  const top_review = reviews.length > 0 && reviews[0].text && reviews[0].text.text\n    ? reviews[0].text.text.substring(0, 120).replace(/\\n/g, ' ')\n    : '';\n\n  const is_open = details.currentOpeningHours ? details.currentOpeningHours.openNow : undefined;\n  const hours_note = is_open === true ? 'currently open' : is_open === false ? 'currently closed' : '';\n\n  const qs = 'name=' + encodeURIComponent(lead.business_name) +\n             '&type=' + encodeURIComponent(lead.industry) +\n             '&city=' + encodeURIComponent(lead.city) +\n             '&phone=' + encodeURIComponent(phone);\n  const preview_url = 'https://teamgoldllc.de/preview?' + qs;\n\n  let wa_message;\n  if (reviews_count > 0) {\n    wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nYou have ${reviews_count} reviews on Google with a ${rating} star rating - clearly doing great work. But we noticed you don't have a website yet.\\n\\nWe put together a free website preview for ${lead.industry}s in ${lead.city}:\\n${preview_url}\\n\\nWant to see how this could bring you more calls? Book a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n  } else {\n    wa_message = `Hi ${lead.business_name}! This is Ryan from Team Gold.\\n\\nWe noticed you don't have a website yet - you're missing out on customers searching for ${lead.industry}s in ${lead.city} on Google.\\n\\nWe put together a free website preview for you:\\n${preview_url}\\n\\nBook a free 30-min chat with our developer Atakan:\\nhttps://cal.com/atakanoztunc/30min`;\n  }\n\n  out.push({ json: { ...lead, phone, rating, reviews_count, top_review, hours_note, preview_url, wa_message } });\n}\nreturn out.length ? out : [];",
+        "mode": "runOnceForAllItems"
       },
       "id": "node-gen-preview",
       "name": "Enrich + Generate Preview & Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1580, 400]
-    },
-    {
-      "parameters": {
-        "operation": "append",
-        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
-        "sheetName": { "__rl": true, "value": "Leads", "mode": "name" },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "business_name": "={{ $json.business_name }}",
-            "phone": "={{ $json.phone }}",
-            "industry": "={{ $json.industry }}",
-            "city": "={{ $json.city }}",
-            "state": "={{ $json.state }}",
-            "address": "={{ $json.address }}",
-            "has_website": "no",
-            "rating": "={{ $json.rating }}",
-            "reviews_count": "={{ $json.reviews_count }}",
-            "place_id": "={{ $json.place_id }}",
-            "preview_url": "={{ $json.preview_url }}",
-            "status": "pending",
-            "added_at": "={{ new Date().toISOString() }}"
-          },
-          "schema": []
-        },
-        "options": {}
-      },
-      "id": "node-save-lead",
-      "name": "Save Lead to Google Sheets",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [1780, 400]
+      "position": [
+        1460,
+        400
+      ]
     },
     {
       "parameters": {
@@ -148,9 +179,18 @@
         "contentType": "form-urlencoded",
         "bodyParameters": {
           "parameters": [
-            { "name": "From", "value": "whatsapp:+REPLACE_WITH_TWILIO_WHATSAPP_NUMBER" },
-            { "name": "To", "value": "=whatsapp:+1{{ $json.phone }}" },
-            { "name": "Body", "value": "={{ $json.wa_message }}" }
+            {
+              "name": "From",
+              "value": "whatsapp:+REPLACE_WITH_TWILIO_WHATSAPP_NUMBER"
+            },
+            {
+              "name": "To",
+              "value": "=whatsapp:+1{{ $json.phone }}"
+            },
+            {
+              "name": "Body",
+              "value": "={{ $json.wa_message }}"
+            }
           ]
         },
         "options": {}
@@ -159,15 +199,25 @@
       "name": "Send WhatsApp with Draft Link",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1980, 400]
+      "position": [
+        1800,
+        400
+      ],
+      "onError": "continueRegularOutput"
     },
     {
-      "parameters": { "amount": 2, "unit": "minutes" },
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
       "id": "node-wait-2min",
       "name": "Wait 2 Minutes",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1,
-      "position": [2180, 400],
+      "position": [
+        1980,
+        400
+      ],
       "webhookId": "wait-before-call"
     },
     {
@@ -177,8 +227,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "Bearer fac0b324-7d83-4f8c-a396-584f5a5bfd47" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_WITH_VAPI_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -190,60 +246,696 @@
       "name": "VAPI — Outbound Call",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [2380, 400]
+      "position": [
+        2060,
+        400
+      ]
     },
     {
       "parameters": {
-        "operation": "update",
-        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
-        "sheetName": { "__rl": true, "value": "Leads", "mode": "name" },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "status": "called",
-            "call_id": "={{ $json.id }}",
-            "called_at": "={{ new Date().toISOString() }}"
-          },
-          "matchingColumns": ["phone"],
-          "schema": []
-        },
-        "options": {}
+        "amount": 60,
+        "unit": "seconds"
       },
-      "id": "node-update-called",
-      "name": "Mark as Called in Sheets",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [2580, 400]
-    },
-    {
-      "parameters": { "amount": 60, "unit": "seconds" },
       "id": "node-wait-60",
       "name": "Wait 60s Before Next Lead",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1,
-      "position": [2780, 400],
+      "position": [
+        2440,
+        400
+      ],
       "webhookId": "wait-between-leads"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pipeline-record-result",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "wh-record-result",
+      "name": "Record Call Result",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        180,
+        800
+      ],
+      "webhookId": "pipeline-record-result"
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.leads) staticData.leads = [];\nif (!staticData.calledNumbers) staticData.calledNumbers = {};\n\nconst b = $json.body || {};\nconst phone = (b.phone || '').replace(/\\D/g, '').replace(/^1/, '');\nif (!phone) return [{ json: { ok: false, reason: 'no phone' } }];\n\nconst now = new Date().toISOString();\nconst idx = staticData.leads.findIndex(l => (l.phone||'').replace(/\\D/g,'').replace(/^1/,'') === phone);\nif (idx >= 0) {\n  staticData.leads[idx].outcome = b.outcome || '';\n  staticData.leads[idx].duration_seconds = b.duration_seconds || 0;\n  staticData.leads[idx].summary = (b.summary || '').substring(0, 300);\n  staticData.leads[idx].result_at = now;\n  if (b.outcome === 'meeting_booked') staticData.leads[idx].status = 'meeting_booked';\n  else if (b.outcome === 'callback_requested') staticData.leads[idx].status = 'callback';\n}\n\n// Blacklist: never call again if customer asked to be removed\nif (b.removed_from_list === true || b.outcome === 'removed_from_list') {\n  staticData.calledNumbers[phone] = 'BLACKLISTED';\n  if (idx >= 0) staticData.leads[idx].status = 'blacklisted';\n}\n\nreturn [{ json: { ok: true, phone, updated: idx >= 0 } }];"
+      },
+      "id": "code-record-result",
+      "name": "Update Lead Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "leads-dashboard",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "wh-dashboard",
+      "name": "Leads Dashboard",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        180,
+        1000
+      ],
+      "webhookId": "leads-dashboard"
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst leads = staticData.leads || [];\nconst called = staticData.calledNumbers || {};\nconst stats = {\n  total_leads: leads.length,\n  called: leads.filter(l => l.status === 'called').length,\n  meetings_booked: leads.filter(l => l.status === 'meeting_booked').length,\n  callbacks: leads.filter(l => l.status === 'callback').length,\n  blacklisted: Object.values(called).filter(v => v === 'BLACKLISTED').length,\n  total_numbers_tracked: Object.keys(called).length\n};\nreturn [{ json: { stats, leads: leads.slice(-100).reverse() } }];"
+      },
+      "id": "code-dashboard",
+      "name": "Build Dashboard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "sched-followup",
+      "name": "Run Daily 10am Follow-up",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        180,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst leads = staticData.leads || [];\nconst called = staticData.calledNumbers || {};\nconst threeDaysAgo = Date.now() - 3*24*60*60*1000;\n\nconst due = leads.filter(l =>\n  l.status === 'called' &&\n  ['no_answer','voicemail',''].includes(l.outcome || '') &&\n  !l.follow_up_sent &&\n  l.called_at && new Date(l.called_at).getTime() < threeDaysAgo &&\n  called[(l.phone||'').replace(/\\D/g,'').replace(/^1/,'')] !== 'BLACKLISTED'\n).slice(0, 5);\n\nreturn due.map(l => ({ json: l }));"
+      },
+      "id": "code-followup-find",
+      "name": "Find No-Answer Leads (3+ Days)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.vapi.ai/call/phone",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_WITH_VAPI_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify({ phoneNumberId: 'e1be79b3-b1c3-42a4-a744-b298be092b26', assistantId: 'bdcc6edf-095f-4cdc-93d5-a138be0b1c0b', customer: { number: '+1' + $json.phone.replace(/\\D/g,''), name: $json.business_name }, assistantOverrides: { variableValues: { business_name: $json.business_name, industry: $json.industry, city: $json.city, rating: String($json.rating || ''), reviews_count: String($json.reviews_count || '0'), top_review: '', preview_url: $json.preview_url || '' } } }) }}",
+        "options": {}
+      },
+      "id": "http-followup-call",
+      "name": "VAPI — Follow-up Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        660,
+        1200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst leads = staticData.leads || [];\nconst due = $('Find No-Answer Leads (3+ Days)').all().map(i => i.json);\nconst out = [];\nfor (const lead of due) {\n  const phone = (lead.phone || '').replace(/\\D/g,'').replace(/^1/,'');\n  const idx = leads.findIndex(l => (l.phone||'').replace(/\\D/g,'').replace(/^1/,'') === phone);\n  if (idx >= 0) {\n    leads[idx].follow_up_sent = true;\n    leads[idx].follow_up_at = new Date().toISOString();\n  }\n  out.push({ json: { ok: true, phone } });\n}\nreturn out.length ? out : [{ json: { ok: true, count: 0 } }];"
+      },
+      "id": "code-followup-mark",
+      "name": "Mark Follow-up Sent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nconst text = 'PIPELINE GESTARTET (' + new Date().toLocaleString('de-DE') + ')\\n\\nSuche heute ' + items.length + ' Kombinationen:\\n' + items.map(i => '- ' + i.json.search_query).join('\\n');\nreturn [{ json: { tg_text: text } }];"
+      },
+      "id": "agg-start",
+      "name": "Agg: Start Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.tg_text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-start",
+      "name": "TG: Pipeline Start",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        840,
+        620
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().filter(i => i.json.place_id);\nlet text;\nif (!items.length) {\n  text = 'KEINE Leads ohne Website gefunden in diesem Lauf. Morgen neue Staedte.';\n} else {\n  text = items.length + ' LEADS GEFUNDEN (ohne Website):\\n\\n' + items.map(i => '- ' + i.json.business_name + ' (' + i.json.city + ' ' + i.json.state + ') ' + i.json.phone).join('\\n');\n}\nreturn [{ json: { tg_text: text.substring(0, 3800) } }];"
+      },
+      "id": "agg-filter",
+      "name": "Agg: Filter Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.tg_text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-filter",
+      "name": "TG: Leads Gefunden",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1280,
+        620
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const after = $input.all().filter(i => i.json.place_id).length;\nconst before = $('Filter: No Website + Has Phone').all().filter(i => i.json.place_id).length;\nconst skipped = before - after;\nconst text = 'DUPLIKAT-CHECK:\\n' + after + ' neue Leads (' + skipped + ' schon kontaktiert, uebersprungen)';\nreturn [{ json: { tg_text: text } }];"
+      },
+      "id": "agg-dedup",
+      "name": "Agg: Dedup Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.tg_text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-dedup",
+      "name": "TG: Dedup Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1280,
+        760
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "=LEAD GESPEICHERT\n\n{{ $json.business_name }}\n{{ $json.city }} {{ $json.state }}\n{{ $json.phone }}\nRating: {{ $json.rating }} ({{ $json.reviews_count }} Reviews)\nBranche: {{ $json.industry }}\nPreview: {{ $json.preview_url }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-saved",
+      "name": "TG: Lead Gespeichert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1500,
+        620
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "=WHATSAPP SCHRITT\n\nFuer: {{ $('Save Lead (Internal)').item.json.business_name }}\nStatus: {{ $json.error ? 'FEHLER (Twilio nicht konfiguriert)' : 'Gesendet' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-wa",
+      "name": "TG: WhatsApp Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1720,
+        620
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "=RYAN RUFT JETZT AN\n\n{{ $('Enrich + Generate Preview & Message').item.json.business_name }}\n{{ $('Enrich + Generate Preview & Message').item.json.phone }}\nCall-ID: {{ $json.id || 'FEHLER: ' + ($json.error ? JSON.stringify($json.error).substring(0,100) : '?') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-vapi",
+      "name": "TG: Ryan Ruft An",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1940,
+        620
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().filter(i => i.json.phone);\nconst text = items.length\n  ? 'FOLLOW-UP LAEUFT: ' + items.length + ' Leads werden nochmal angerufen:\\n' + items.map(i => '- ' + i.json.business_name).join('\\n')\n  : 'Follow-up Check: keine Leads faellig heute.';\nreturn [{ json: { tg_text: text } }];"
+      },
+      "id": "agg-fu",
+      "name": "Agg: Follow-up Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        1340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "REPLACE_TELEGRAM_CHAT_ID"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.tg_text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-fu",
+      "name": "TG: Follow-up Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        840,
+        1340
+      ],
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
-    "Run Daily 9am (Mon-Fri)": { "main": [[{ "node": "Set Target City & Industry", "type": "main", "index": 0 }]] },
-    "Set Target City & Industry": { "main": [[{ "node": "Google Places — Find Businesses", "type": "main", "index": 0 }]] },
-    "Google Places — Find Businesses": {
-      "main": [[
-        { "node": "Filter: No Website + Has Phone", "type": "main", "index": 0 },
-        { "node": "Read Existing Leads", "type": "main", "index": 0 }
-      ]]
+    "Run Daily 9am (Mon-Fri)": {
+      "main": [
+        [
+          {
+            "node": "Set Config & Target",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Filter: No Website + Has Phone": { "main": [[{ "node": "Skip If Already Called", "type": "main", "index": 0 }]] },
-    "Read Existing Leads": { "main": [[{ "node": "Skip If Already Called", "type": "main", "index": 0 }]] },
-    "Skip If Already Called": { "main": [[{ "node": "Get Place Details (Rating + Reviews)", "type": "main", "index": 0 }]] },
-    "Get Place Details (Rating + Reviews)": { "main": [[{ "node": "Enrich + Generate Preview & Message", "type": "main", "index": 0 }]] },
-    "Enrich + Generate Preview & Message": { "main": [[{ "node": "Save Lead to Google Sheets", "type": "main", "index": 0 }]] },
-    "Save Lead to Google Sheets": { "main": [[{ "node": "Send WhatsApp with Draft Link", "type": "main", "index": 0 }]] },
-    "Send WhatsApp with Draft Link": { "main": [[{ "node": "Wait 2 Minutes", "type": "main", "index": 0 }]] },
-    "Wait 2 Minutes": { "main": [[{ "node": "VAPI — Outbound Call", "type": "main", "index": 0 }]] },
-    "VAPI — Outbound Call": { "main": [[{ "node": "Mark as Called in Sheets", "type": "main", "index": 0 }]] },
-    "Mark as Called in Sheets": { "main": [[{ "node": "Wait 60s Before Next Lead", "type": "main", "index": 0 }]] }
+    "Set Config & Target": {
+      "main": [
+        [
+          {
+            "node": "Google Places — Find Businesses",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Agg: Start Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Places — Find Businesses": {
+      "main": [
+        [
+          {
+            "node": "Filter: No Website + Has Phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: No Website + Has Phone": {
+      "main": [
+        [
+          {
+            "node": "Skip If Already Called",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Agg: Filter Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip If Already Called": {
+      "main": [
+        [
+          {
+            "node": "Get Place Details (Rating + Reviews)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Agg: Dedup Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Place Details (Rating + Reviews)": {
+      "main": [
+        [
+          {
+            "node": "Enrich + Generate Preview & Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich + Generate Preview & Message": {
+      "main": [
+        [
+          {
+            "node": "Save Lead (Internal)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Lead (Internal)": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp with Draft Link",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TG: Lead Gespeichert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp with Draft Link": {
+      "main": [
+        [
+          {
+            "node": "Wait 2 Minutes",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TG: WhatsApp Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2 Minutes": {
+      "main": [
+        [
+          {
+            "node": "VAPI — Outbound Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VAPI — Outbound Call": {
+      "main": [
+        [
+          {
+            "node": "Mark as Called",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TG: Ryan Ruft An",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark as Called": {
+      "main": [
+        [
+          {
+            "node": "Wait 60s Before Next Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Call Result": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leads Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Build Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Daily 10am Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Find No-Answer Leads (3+ Days)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find No-Answer Leads (3+ Days)": {
+      "main": [
+        [
+          {
+            "node": "VAPI — Follow-up Call",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Agg: Follow-up Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VAPI — Follow-up Call": {
+      "main": [
+        [
+          {
+            "node": "Mark Follow-up Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agg: Start Info": {
+      "main": [
+        [
+          {
+            "node": "TG: Pipeline Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agg: Filter Info": {
+      "main": [
+        [
+          {
+            "node": "TG: Leads Gefunden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agg: Dedup Info": {
+      "main": [
+        [
+          {
+            "node": "TG: Dedup Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agg: Follow-up Info": {
+      "main": [
+        [
+          {
+            "node": "TG: Follow-up Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "DHlyso6CqDknJfBz"
+  }
 }
