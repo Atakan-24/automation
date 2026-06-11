@@ -45,7 +45,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const msg = $json.body?.message || {};\nconst call = msg.call || {};\nconst vars = call.assistantOverrides?.variableValues || {};\nconst analysis = msg.analysis || {};\nconst structured = analysis.structuredData || {};\n\n// Extract outcome: try structuredData first, then infer from endedReason\nlet outcome = structured.outcome || '';\nif (!outcome) {\n  const reason = msg.endedReason || '';\n  const dur = msg.durationSeconds || 0;\n  if (reason.includes('voicemail') || reason.includes('machine')) outcome = 'voicemail';\n  else if (reason.includes('no-answer') || dur < 10) outcome = 'no_answer';\n  else outcome = 'completed';\n}\n\n// Check if customer asked to be removed\nconst transcript = (msg.transcript || '').toLowerCase();\nconst removed = transcript.includes('remove me') || transcript.includes('do not call') || outcome === 'removed_from_list';\nif (removed) outcome = 'removed_from_list';\n\nreturn [{ json: {\n  call_id: call.id || '',\n  phone: (call.customer?.number || '').replace(/\\D/g,'').replace(/^1/,''),\n  business_name: call.customer?.name || vars.business_name || '',\n  industry: vars.industry || '',\n  city: vars.city || '',\n  rating: vars.rating || '',\n  reviews_count: vars.reviews_count || '',\n  duration_seconds: msg.durationSeconds || 0,\n  ended_reason: msg.endedReason || '',\n  outcome: outcome,\n  removed_from_list: removed,\n  summary: analysis.summary || '',\n  transcript: (msg.transcript || '').substring(0, 2000),\n  timestamp: new Date().toISOString()\n} }];"
+        "jsCode": "const msg = $json.body?.message || {};\nconst call = msg.call || {};\nconst vars = call.assistantOverrides?.variableValues || {};\nconst analysis = msg.analysis || {};\nconst structured = analysis.structuredData || {};\nconst artifact = msg.artifact || {};\nconst recordingUrl = artifact.recordingUrl || msg.recordingUrl || '';\n\n// Extract outcome: try structuredData first, then infer from endedReason\nlet outcome = structured.outcome || '';\nif (!outcome) {\n  const reason = msg.endedReason || '';\n  const dur = msg.durationSeconds || 0;\n  if (reason.includes('voicemail') || reason.includes('machine')) outcome = 'voicemail';\n  else if (reason.includes('no-answer') || dur < 10) outcome = 'no_answer';\n  else outcome = 'completed';\n}\n\n// Check if customer asked to be removed\nconst transcript = (msg.transcript || '').toLowerCase();\nconst removed = transcript.includes('remove me') || transcript.includes('do not call') || outcome === 'removed_from_list';\nif (removed) outcome = 'removed_from_list';\n\nreturn [{ json: {\n  call_id: call.id || '',\n  phone: (call.customer?.number || '').replace(/\\D/g,'').replace(/^1/,''),\n  business_name: call.customer?.name || vars.business_name || '',\n  industry: vars.industry || '',\n  city: vars.city || '',\n  rating: vars.rating || '',\n  reviews_count: vars.reviews_count || '',\n  duration_seconds: msg.durationSeconds || 0,\n  ended_reason: msg.endedReason || '',\n  outcome: outcome,\n  removed_from_list: removed,\n  summary: analysis.summary || msg.summary || '',\n  notes: structured.notes || '',\n  recording_url: recordingUrl,\n  transcript: (msg.transcript || '').substring(0, 2000),\n  timestamp: new Date().toISOString()\n} }];"
       },
       "id": "node-extract",
       "name": "Extract Call Data",
@@ -100,13 +100,13 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
             {
               "name": "chat_id",
-              "value": "REPLACE_TELEGRAM_CHAT_ID"
+              "value": "5381600986"
             },
             {
               "name": "text",
@@ -121,7 +121,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const src = $('Save Result (Internal)').all();\nconst out = [];\nfor (const item of src) {\n  const j = item.json;\n  let head;\n  if (j.outcome === 'meeting_booked') head = 'MEETING GEBUCHT!!!';\n  else if (j.outcome === 'callback_requested') head = 'Callback gewuenscht';\n  else if (j.outcome === 'voicemail') head = 'Voicemail hinterlassen';\n  else if (j.outcome === 'no_answer') head = 'Nicht erreicht';\n  else head = 'Anruf beendet: ' + (j.outcome || '?');\n\n  let text = head + '\\n\\n' + (j.business_name || '?') + '\\n' + (j.phone || '') + '\\nDauer: ' + (j.duration_seconds || 0) + 's';\n  if (j.summary && j.outcome === 'meeting_booked') text += '\\n\\n' + String(j.summary).substring(0, 200);\n\n  out.push({ json: { tg_text: text } });\n}\nreturn out;"
+        "jsCode": "const src = $('Save Result (Internal)').all();\nconst out = [];\nfor (const item of src) {\n  const j = item.json;\n  let head;\n  if (j.outcome === 'meeting_booked') head = 'MEETING GEBUCHT!!!';\n  else if (j.outcome === 'callback_requested') head = 'Callback gewuenscht';\n  else if (j.outcome === 'voicemail') head = 'Voicemail hinterlassen';\n  else if (j.outcome === 'no_answer') head = 'Nicht erreicht';\n  else if (j.outcome === 'not_interested') head = 'Kein Interesse';\n  else if (j.outcome === 'wrong_number') head = 'Falsche Nummer';\n  else if (j.outcome === 'removed_from_list') head = 'Von Liste entfernt (nie wieder anrufen)';\n  else head = 'Anruf beendet: ' + (j.outcome || '?');\n\n  const mins = Math.floor((j.duration_seconds || 0) / 60);\n  const secs = (j.duration_seconds || 0) % 60;\n  let text = 'ANRUF-ERGEBNIS: ' + head + '\\n\\n';\n  text += 'Firma: ' + (j.business_name || '?') + '\\n';\n  text += 'Telefon: ' + (j.phone || '') + '\\n';\n  text += 'Branche: ' + (j.industry || '?') + ' (' + (j.city || '?') + ')\\n';\n  text += 'Dauer: ' + (mins > 0 ? mins + 'm ' : '') + secs + 's\\n';\n\n  if (j.summary) text += '\\nZUSAMMENFASSUNG:\\n' + String(j.summary).substring(0, 500) + '\\n';\n  if (j.notes && j.notes !== j.summary) text += '\\nNOTIZEN: ' + String(j.notes).substring(0, 300) + '\\n';\n  if (j.recording_url) text += '\\nAUFNAHME ANHOEREN:\\n' + j.recording_url + '\\n';\n  if (j.transcript) text += '\\nTRANSKRIPT (Auszug):\\n' + String(j.transcript).substring(0, 800);\n\n  out.push({ json: { tg_text: text.substring(0, 3900) } });\n}\nreturn out;"
       },
       "id": "node-tg-builder",
       "name": "Build TG Message",
