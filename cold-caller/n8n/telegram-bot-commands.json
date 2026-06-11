@@ -1,0 +1,204 @@
+{
+  "name": "Telegram Bot — Befehle (start/status)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tg-bot-commands",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "wh-tg",
+      "name": "Telegram Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "tg-bot-commands"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ALLOWED_CHAT = '5381600986';\nconst upd = $input.first().json.body || $input.first().json;\nconst msg = upd.message || {};\nconst chatId = String((msg.chat || {}).id || '');\nconst text = (msg.text || '').trim().toLowerCase();\n\nif (chatId !== ALLOWED_CHAT) {\n  return [{ json: { action: 'ignore', chat_id: chatId } }];\n}\n\nlet action = 'help';\nif (text === '/start' || text === 'start' || text === '/run' || text === 'los') action = 'start';\nelse if (text === '/status' || text === 'status') action = 'status';\n\nreturn [{ json: { action, chat_id: chatId, text } }];"
+      },
+      "id": "code-parse",
+      "name": "Befehl Erkennen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "start",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-start",
+      "name": "Ist Start-Befehl?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://217.154.67.223/webhook/start-pipeline-tg",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "{\"source\": \"telegram\"}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "http-start",
+      "name": "Pipeline Starten",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        860,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "5381600986"
+            },
+            {
+              "name": "text",
+              "value": "PIPELINE GESTARTET! Du bekommst gleich die Updates zu jedem Schritt."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-confirm-start",
+      "name": "TG: Start Bestaetigt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "5381600986"
+            },
+            {
+              "name": "text",
+              "value": "Befehle:\nstart - Pipeline sofort starten (sucht Leads + ruft an)\nstatus - System Status\n\nAutomatisch laeuft die Pipeline Mo-Fr um 9am EDT (15 Uhr DE)."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tg-help",
+      "name": "TG: Hilfe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        860,
+        420
+      ],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Telegram Webhook": {
+      "main": [
+        [
+          {
+            "node": "Befehl Erkennen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Befehl Erkennen": {
+      "main": [
+        [
+          {
+            "node": "Ist Start-Befehl?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ist Start-Befehl?": {
+      "main": [
+        [
+          {
+            "node": "Pipeline Starten",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TG: Hilfe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pipeline Starten": {
+      "main": [
+        [
+          {
+            "node": "TG: Start Bestaetigt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "DHlyso6CqDknJfBz"
+  }
+}
