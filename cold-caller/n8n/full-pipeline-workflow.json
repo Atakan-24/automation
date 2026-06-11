@@ -103,7 +103,7 @@
             },
             {
               "name": "X-Goog-Api-Key",
-              "value": "REPLACE_WITH_GOOGLE_PLACES_API_KEY"
+              "value": "GOOGLE_PLACES_API_KEY"
             },
             {
               "name": "X-Goog-FieldMask",
@@ -135,7 +135,7 @@
           "parameters": [
             {
               "name": "X-Goog-Api-Key",
-              "value": "REPLACE_WITH_GOOGLE_PLACES_API_KEY"
+              "value": "GOOGLE_PLACES_API_KEY"
             },
             {
               "name": "X-Goog-FieldMask",
@@ -229,7 +229,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer REPLACE_WITH_VAPI_API_KEY"
+              "value": "Bearer VAPI_API_KEY"
             },
             {
               "name": "Content-Type",
@@ -238,9 +238,10 @@
           ]
         },
         "sendBody": true,
-        "contentType": "json",
-        "jsonBody": "={{ JSON.stringify({ phoneNumberId: 'e1be79b3-b1c3-42a4-a744-b298be092b26', assistantId: 'bdcc6edf-095f-4cdc-93d5-a138be0b1c0b', customer: { number: '+1' + $json.phone.replace(/\\D/g,''), name: $json.business_name }, assistantOverrides: { variableValues: { business_name: $json.business_name, industry: $json.industry, city: $json.city, rating: String($json.rating || ''), reviews_count: String($json.reviews_count || '0'), top_review: $json.top_review || '', preview_url: $json.preview_url } } }) }}",
-        "options": {}
+        "contentType": "raw",
+        "options": {},
+        "rawContentType": "application/json",
+        "body": "={{ $json.vapi_body }}"
       },
       "id": "node-vapi-call",
       "name": "VAPI — Outbound Call",
@@ -349,7 +350,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst leads = staticData.leads || [];\nconst called = staticData.calledNumbers || {};\nconst threeDaysAgo = Date.now() - 3*24*60*60*1000;\n\nconst due = leads.filter(l =>\n  l.status === 'called' &&\n  ['no_answer','voicemail',''].includes(l.outcome || '') &&\n  !l.follow_up_sent &&\n  l.called_at && new Date(l.called_at).getTime() < threeDaysAgo &&\n  called[(l.phone||'').replace(/\\D/g,'').replace(/^1/,'')] !== 'BLACKLISTED'\n).slice(0, 5);\n\nreturn due.map(l => ({ json: l }));"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst leads = staticData.leads || [];\nconst called = staticData.calledNumbers || {};\nconst threeDaysAgo = Date.now() - 3*24*60*60*1000;\n\nconst due = leads.filter(l =>\n  l.status === 'called' &&\n  ['no_answer','voicemail',''].includes(l.outcome || '') &&\n  !l.follow_up_sent &&\n  l.called_at && new Date(l.called_at).getTime() < threeDaysAgo &&\n  called[(l.phone||'').replace(/\\D/g,'').replace(/^1/,'')] !== 'BLACKLISTED'\n).slice(0, 5);\n\nreturn due.map(l => {\n  const payload = {\n    phoneNumberId: 'e1be79b3-b1c3-42a4-a744-b298be092b26',\n    assistantId: 'bdcc6edf-095f-4cdc-93d5-a138be0b1c0b',\n    customer: {\n      number: '+1' + String(l.phone || '').replace(/[^0-9]/g, '').slice(-10),\n      name: l.business_name || ''\n    },\n    assistantOverrides: {\n      variableValues: {\n        business_name: l.business_name || '',\n        industry: l.industry || '',\n        city: l.city || '',\n        rating: String(l.rating || ''),\n        reviews_count: String(l.reviews_count || '0'),\n        top_review: l.top_review || '',\n        preview_url: l.preview_url || '',\n        is_followup: 'true'\n      }\n    }\n  };\n  return { json: { ...l, vapi_body: JSON.stringify(payload) } };\n});"
       },
       "id": "code-followup-find",
       "name": "Find No-Answer Leads (3+ Days)",
@@ -369,7 +370,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer REPLACE_WITH_VAPI_API_KEY"
+              "value": "Bearer VAPI_API_KEY"
             },
             {
               "name": "Content-Type",
@@ -378,9 +379,10 @@
           ]
         },
         "sendBody": true,
-        "contentType": "json",
-        "jsonBody": "={{ JSON.stringify({ phoneNumberId: 'e1be79b3-b1c3-42a4-a744-b298be092b26', assistantId: 'bdcc6edf-095f-4cdc-93d5-a138be0b1c0b', customer: { number: '+1' + $json.phone.replace(/\\D/g,''), name: $json.business_name }, assistantOverrides: { variableValues: { business_name: $json.business_name, industry: $json.industry, city: $json.city, rating: String($json.rating || ''), reviews_count: String($json.reviews_count || '0'), top_review: '', preview_url: $json.preview_url || '' } } }) }}",
-        "options": {}
+        "contentType": "raw",
+        "options": {},
+        "rawContentType": "application/json",
+        "body": "={{ $json.vapi_body }}"
       },
       "id": "http-followup-call",
       "name": "VAPI — Follow-up Call",
@@ -423,13 +425,13 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
             {
               "name": "chat_id",
-              "value": "REPLACE_TELEGRAM_CHAT_ID"
+              "value": "5381600986"
             },
             {
               "name": "text",
@@ -466,13 +468,13 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
             {
               "name": "chat_id",
-              "value": "REPLACE_TELEGRAM_CHAT_ID"
+              "value": "5381600986"
             },
             {
               "name": "text",
@@ -509,13 +511,13 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
             {
               "name": "chat_id",
-              "value": "REPLACE_TELEGRAM_CHAT_ID"
+              "value": "5381600986"
             },
             {
               "name": "text",
@@ -538,13 +540,13 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
             {
               "name": "chat_id",
-              "value": "REPLACE_TELEGRAM_CHAT_ID"
+              "value": "5381600986"
             },
             {
               "name": "text",
@@ -567,13 +569,13 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
             {
               "name": "chat_id",
-              "value": "REPLACE_TELEGRAM_CHAT_ID"
+              "value": "5381600986"
             },
             {
               "name": "text",
@@ -596,13 +598,13 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
             {
               "name": "chat_id",
-              "value": "REPLACE_TELEGRAM_CHAT_ID"
+              "value": "5381600986"
             },
             {
               "name": "text",
@@ -639,13 +641,13 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://api.telegram.org/botREPLACE_WITH_TELEGRAM_TOKEN/sendMessage",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
             {
               "name": "chat_id",
-              "value": "REPLACE_TELEGRAM_CHAT_ID"
+              "value": "5381600986"
             },
             {
               "name": "text",
@@ -664,6 +666,37 @@
         1340
       ],
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "start-pipeline-tg",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "wh-tg-start",
+      "name": "Manual Start (Telegram)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        560
+      ],
+      "webhookId": "start-pipeline-tg"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  const l = item.json;\n  const payload = {\n    phoneNumberId: 'e1be79b3-b1c3-42a4-a744-b298be092b26',\n    assistantId: 'bdcc6edf-095f-4cdc-93d5-a138be0b1c0b',\n    customer: {\n      number: '+1' + String(l.phone || '').replace(/[^0-9]/g, '').slice(-10),\n      name: l.business_name || ''\n    },\n    assistantOverrides: {\n      variableValues: {\n        business_name: l.business_name || '',\n        industry: l.industry || '',\n        city: l.city || '',\n        rating: String(l.rating || ''),\n        reviews_count: String(l.reviews_count || '0'),\n        top_review: l.top_review || '',\n        preview_url: l.preview_url || ''\n      }\n    }\n  };\n  out.push({ json: { ...l, vapi_body: JSON.stringify(payload) } });\n}\nreturn out;"
+      },
+      "id": "node-build-vapi",
+      "name": "Build VAPI Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        300
+      ]
     }
   ],
   "connections": {
@@ -795,7 +828,7 @@
       "main": [
         [
           {
-            "node": "VAPI — Outbound Call",
+            "node": "Build VAPI Payload",
             "type": "main",
             "index": 0
           }
@@ -927,6 +960,28 @@
         [
           {
             "node": "TG: Follow-up Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Start (Telegram)": {
+      "main": [
+        [
+          {
+            "node": "Set Config & Target",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build VAPI Payload": {
+      "main": [
+        [
+          {
+            "node": "VAPI — Outbound Call",
             "type": "main",
             "index": 0
           }
