@@ -21,7 +21,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const ALLOWED_CHAT = '5381600986';\nconst upd = $input.first().json.body || $input.first().json;\nconst msg = upd.message || {};\nconst chatId = String((msg.chat || {}).id || '');\nconst text = (msg.text || '').trim().toLowerCase();\n\nif (chatId !== ALLOWED_CHAT) {\n  return [{ json: { action: 'ignore', chat_id: chatId } }];\n}\n\nlet action = 'help';\nif (text === '/start' || text === 'start' || text === '/run' || text === 'los') action = 'start';\nelse if (text === '/status' || text === 'status') action = 'status';\n\nreturn [{ json: { action, chat_id: chatId, text } }];"
+        "jsCode": "const ALLOWED_CHAT = '5381600986';\nconst upd = $input.first().json.body || $input.first().json;\nconst msg = upd.message || {};\nconst chatId = String((msg.chat || {}).id || '');\nconst text = (msg.text || '').trim().toLowerCase();\n\nif (chatId !== ALLOWED_CHAT) {\n  return [{ json: { action: 'ignore', chat_id: chatId } }];\n}\n\nlet action = 'help';\nif (text === '/start' || text === 'start' || text === '/run' || text === 'los') action = 'start';\nelse if (text === '/bericht' || text === 'bericht' || text === '/report' || text === 'report') action = 'report';\nelse if (text === '/status' || text === 'status') action = 'status';\n\nreturn [{ json: { action, chat_id: chatId, text } }];"
       },
       "id": "code-parse",
       "name": "Befehl Erkennen",
@@ -127,7 +127,7 @@
             },
             {
               "name": "text",
-              "value": "Befehle:\nstart - Pipeline sofort starten (sucht Leads + ruft an)\nstatus - System Status\n\nAutomatisch laeuft die Pipeline Mo-Fr um 9am EDT (15 Uhr DE)."
+              "value": "Befehle:\nstart - Pipeline sofort starten (sucht Leads + ruft an)\nbericht - Tagesbericht mit allen Anruf-Ergebnissen\nstatus - System Status\n\nAutomatisch: Pipeline Mo-Fr 9am EDT, Tagesbericht Mo-Fr 18 Uhr (EDT)."
             }
           ]
         },
@@ -140,6 +140,59 @@
       "position": [
         860,
         420
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "report",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-report",
+      "name": "Ist Bericht-Befehl?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        860,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://217.154.67.223/webhook/daily-report",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "{\"source\": \"telegram\"}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "http-report",
+      "name": "Bericht Anfordern",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        340
       ],
       "onError": "continueRegularOutput"
     }
@@ -178,7 +231,7 @@
         ],
         [
           {
-            "node": "TG: Hilfe",
+            "node": "Ist Bericht-Befehl?",
             "type": "main",
             "index": 0
           }
@@ -190,6 +243,24 @@
         [
           {
             "node": "TG: Start Bestaetigt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ist Bericht-Befehl?": {
+      "main": [
+        [
+          {
+            "node": "Bericht Anfordern",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TG: Hilfe",
             "type": "main",
             "index": 0
           }
