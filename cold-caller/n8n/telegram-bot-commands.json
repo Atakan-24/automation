@@ -21,7 +21,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const ALLOWED_CHAT = '5381600986';\nconst upd = $input.first().json.body || $input.first().json;\nconst msg = upd.message || {};\nconst chatId = String((msg.chat || {}).id || '');\nconst text = (msg.text || '').trim().toLowerCase();\n\nif (chatId !== ALLOWED_CHAT) {\n  return [{ json: { action: 'ignore', chat_id: chatId } }];\n}\n\nconst TOGGLES = {\n  '/stop':'stop','stop':'stop',\n  '/resume':'resume','resume':'resume','/weiter':'resume','weiter':'resume',\n  '/anrufe aus':'calls_off','anrufe aus':'calls_off',\n  '/anrufe an':'calls_on','anrufe an':'calls_on',\n  '/sms aus':'sms_off','sms aus':'sms_off',\n  '/sms an':'sms_on','sms an':'sms_on',\n  '/preview aus':'preview_off','preview aus':'preview_off',\n  '/preview an':'preview_on','preview an':'preview_on',\n};\nconst TOGGLE_PAYLOADS = {\n  stop: {module:'paused',enabled:true},\n  resume: {module:'paused',enabled:false},\n  calls_off: {module:'calls',enabled:false},\n  calls_on: {module:'calls',enabled:true},\n  sms_off: {module:'sms',enabled:false},\n  sms_on: {module:'sms',enabled:true},\n  preview_off: {module:'preview',enabled:false},\n  preview_on: {module:'preview',enabled:true},\n};\nconst TOGGLE_MSGS = {\n  stop: 'GESTOPPT. Keine Anrufe mehr bis /resume.',\n  resume: 'AKTIV. Pipeline laeuft wieder normal.',\n  calls_off: 'Anrufe deaktiviert. SMS und Preview laufen weiter.',\n  calls_on: 'Anrufe wieder aktiviert.',\n  sms_off: 'SMS deaktiviert.',\n  sms_on: 'SMS wieder aktiviert.',\n  preview_off: 'Website-Preview deaktiviert.',\n  preview_on: 'Website-Preview wieder aktiviert.',\n};\n\nlet action = 'ai';\nif (text === '/start' || text === 'start' || text === '/run' || text === 'los') action = 'start';\nelse if (text === '/bericht' || text === 'bericht' || text === '/report' || text === 'report') action = 'report';\nelse if (text === '/demo' || text === 'demo' || text === 'testanruf') action = 'demo';\nelse if (text === '/status' || text === 'status') action = 'status';\nelse if (TOGGLES[text]) action = TOGGLES[text];\nelse if (text.startsWith('/')) action = 'help';\n\nconst togglePayload = TOGGLE_PAYLOADS[action] ? JSON.stringify(TOGGLE_PAYLOADS[action]) : '{}';\nconst toggleMsg = TOGGLE_MSGS[action] || '';\n\nreturn [{ json: { action, chat_id: chatId, text, toggle_payload: togglePayload, toggle_msg: toggleMsg } }];"
+        "jsCode": "const ALLOWED_CHAT = '5381600986';\nconst upd = $input.first().json.body || $input.first().json;\nconst msg = upd.message || {};\nconst callback = upd.callback_query || null;\nconst chatId = String(\n  (msg.chat || {}).id ||\n  ((callback && callback.message && callback.message.chat) ? callback.message.chat.id : '') ||\n  ''\n);\nconst rawText = callback ? (callback.data || '') : (msg.text || '');\nconst text = rawText.trim().toLowerCase();\n\nif (chatId !== ALLOWED_CHAT) {\n  return [{ json: { action: 'ignore', chat_id: chatId, toggle_msg: '__IGNORE__' } }];\n}\n\nconst isCallback = !!callback;\nconst callbackQueryId = callback ? callback.id : null;\n\nconst TOGGLES = {\n  '/stop':'stop','stop':'stop',\n  '/resume':'resume','resume':'resume','/weiter':'resume','weiter':'resume',\n  '/anrufe aus':'calls_off','anrufe aus':'calls_off',\n  '/anrufe an':'calls_on','anrufe an':'calls_on',\n  '/sms aus':'sms_off','sms aus':'sms_off',\n  '/sms an':'sms_on','sms an':'sms_on',\n  '/preview aus':'preview_off','preview aus':'preview_off',\n  '/preview an':'preview_on','preview an':'preview_on',\n};\nconst TOGGLE_PAYLOADS = {\n  stop: {module:'paused',enabled:true},\n  resume: {module:'paused',enabled:false},\n  calls_off: {module:'calls',enabled:false},\n  calls_on: {module:'calls',enabled:true},\n  sms_off: {module:'sms',enabled:false},\n  sms_on: {module:'sms',enabled:true},\n  preview_off: {module:'preview',enabled:false},\n  preview_on: {module:'preview',enabled:true},\n};\nconst TOGGLE_MSGS = {\n  stop: 'GESTOPPT. Keine Anrufe mehr bis /resume.',\n  resume: 'AKTIV. Pipeline laeuft wieder normal.',\n  calls_off: 'Anrufe deaktiviert. SMS und Preview laufen weiter.',\n  calls_on: 'Anrufe wieder aktiviert.',\n  sms_off: 'SMS deaktiviert.',\n  sms_on: 'SMS wieder aktiviert.',\n  preview_off: 'Website-Preview deaktiviert.',\n  preview_on: 'Website-Preview wieder aktiviert.',\n  help: '__HELP__',\n  ignore: '__IGNORE__',\n};\n\nlet action = 'ai';\nif (text === '/start' || text === 'start' || text === '/run' || text === 'los') action = 'start';\nelse if (text === '/bericht' || text === 'bericht' || text === '/report' || text === 'report') action = 'report';\nelse if (text === '/demo' || text === 'demo' || text === 'testanruf') action = 'demo';\nelse if (text === '/status' || text === 'status') action = 'status';\nelse if (text === '/leads' || text === 'leads') action = 'leads';\nelse if (text === '/einstellungen' || text === 'einstellungen' || text === '/settings') action = 'einstellungen';\nelse if (text === '/help' || text === '/hilfe' || text === 'help' || text === 'hilfe') action = 'help';\nelse if (TOGGLES[text]) action = TOGGLES[text];\nelse if (text.startsWith('/')) action = 'help';\n\nconst togglePayload = TOGGLE_PAYLOADS[action] || null;\nconst toggleMsg = TOGGLE_MSGS[action] || null;\n\nreturn [{ json: {\n  action,\n  chat_id: chatId,\n  text: rawText,\n  toggle_payload: togglePayload ? JSON.stringify(togglePayload) : null,\n  toggle_msg: toggleMsg,\n  is_callback: isCallback,\n  callback_query_id: callbackQueryId,\n} }];"
       },
       "id": "code-parse",
       "name": "Befehl Erkennen",
@@ -138,8 +138,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        860,
-        420
+        1740,
+        540
       ],
       "onError": "continueRegularOutput"
     },
@@ -418,6 +418,10 @@
             {
               "name": "text",
               "value": "={{ $json.status_text || 'Status nicht verfuegbar' }}"
+            },
+            {
+              "name": "reply_markup",
+              "value": "{\"inline_keyboard\": [[{\"text\": \"Anrufe AN\", \"callback_data\": \"anrufe an\"}, {\"text\": \"Anrufe AUS\", \"callback_data\": \"anrufe aus\"}], [{\"text\": \"SMS AN\", \"callback_data\": \"sms an\"}, {\"text\": \"SMS AUS\", \"callback_data\": \"sms aus\"}], [{\"text\": \"Preview AN\", \"callback_data\": \"preview an\"}, {\"text\": \"Preview AUS\", \"callback_data\": \"preview aus\"}], [{\"text\": \"\\u25b6 Pipeline Starten\", \"callback_data\": \"resume\"}, {\"text\": \"\\u23f9 Pipeline Stoppen\", \"callback_data\": \"stop\"}], [{\"text\": \"Bericht\", \"callback_data\": \"bericht\"}, {\"text\": \"Leads\", \"callback_data\": \"leads\"}, {\"text\": \"Einstellungen\", \"callback_data\": \"einstellungen\"}]]}"
             }
           ]
         },
@@ -531,6 +535,234 @@
         },
         "options": {}
       }
+    },
+    {
+      "id": "if-callback",
+      "name": "Ist Callback-Query?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        640,
+        140
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cb-check",
+              "leftValue": "={{ $json.is_callback }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "http-callback-ack",
+      "name": "Callback Bestätigen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        640,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/answerCallbackQuery",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "callback_query_id",
+              "value": "={{ $('Befehl Erkennen').first().json.callback_query_id }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "if-hilfe",
+      "name": "Ist Hilfe-Befehl?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        580
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "id": "hilfe-check",
+              "leftValue": "={{ $('Befehl Erkennen').first().json.toggle_msg }}",
+              "rightValue": "__HELP__",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "if-leads",
+      "name": "Ist Leads-Befehl?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        680
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "id": "leads-check",
+              "leftValue": "={{ $('Befehl Erkennen').first().json.action }}",
+              "rightValue": "leads",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "http-get-leads",
+      "name": "Leads Abrufen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1740,
+        640
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:5678/webhook/get-leads",
+        "options": {}
+      }
+    },
+    {
+      "id": "tg-leads",
+      "name": "TG: Leads Liste",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1960,
+        640
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "5381600986"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.leads_text || 'Keine Leads gefunden.' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "if-einstellungen",
+      "name": "Ist Einstellungen-Befehl?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        780
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "id": "einst-check",
+              "leftValue": "={{ $('Befehl Erkennen').first().json.action }}",
+              "rightValue": "einstellungen",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "http-get-einst",
+      "name": "Einstellungen Abrufen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1740,
+        740
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:5678/webhook/get-einstellungen",
+        "options": {}
+      }
+    },
+    {
+      "id": "tg-einstellungen",
+      "name": "TG: Einstellungen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1960,
+        740
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "5381600986"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.einstellungen_text || 'Einstellungen nicht verfuegbar.' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
     }
   ],
   "connections": {
@@ -548,6 +780,11 @@
     "Befehl Erkennen": {
       "main": [
         [
+          {
+            "node": "Ist Callback-Query?",
+            "type": "main",
+            "index": 0
+          },
           {
             "node": "Ist Start-Befehl?",
             "type": "main",
@@ -643,7 +880,7 @@
         ],
         [
           {
-            "node": "Ist Status-Befehl?",
+            "node": "Ist Hilfe-Befehl?",
             "type": "main",
             "index": 0
           }
@@ -706,6 +943,94 @@
         [
           {
             "node": "Groq AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ist Callback-Query?": {
+      "main": [
+        [
+          {
+            "node": "Callback Bestätigen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Ist Hilfe-Befehl?": {
+      "main": [
+        [
+          {
+            "node": "TG: Hilfe",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ist Leads-Befehl?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ist Leads-Befehl?": {
+      "main": [
+        [
+          {
+            "node": "Leads Abrufen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ist Einstellungen-Befehl?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leads Abrufen": {
+      "main": [
+        [
+          {
+            "node": "TG: Leads Liste",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ist Einstellungen-Befehl?": {
+      "main": [
+        [
+          {
+            "node": "Einstellungen Abrufen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ist Status-Befehl?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Einstellungen Abrufen": {
+      "main": [
+        [
+          {
+            "node": "TG: Einstellungen",
             "type": "main",
             "index": 0
           }

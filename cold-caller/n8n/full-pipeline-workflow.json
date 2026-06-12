@@ -732,7 +732,7 @@
         800
       ],
       "parameters": {
-        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst module = body.module;\nconst enabled = body.enabled;\nconst staticData = $getWorkflowStaticData('global');\n\nif (module === 'paused') staticData.paused = !enabled;\nelse if (module === 'calls') staticData.calls_enabled = enabled;\nelse if (module === 'sms') staticData.sms_enabled = enabled;\nelse if (module === 'preview') staticData.preview_enabled = enabled;\n\nreturn [{ json: { success: true, module, enabled,\n  paused: staticData.paused === true,\n  calls_enabled: staticData.calls_enabled !== false,\n  sms_enabled: staticData.sms_enabled !== false,\n  preview_enabled: staticData.preview_enabled !== false\n} }];"
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst module = body.module;\nconst enabled = body.enabled;\nconst staticData = $getWorkflowStaticData('global');\n\nif (module === 'paused') staticData.paused = !!enabled;\nelse if (module === 'calls') staticData.calls_enabled = enabled;\nelse if (module === 'sms') staticData.sms_enabled = enabled;\nelse if (module === 'preview') staticData.preview_enabled = enabled;\n\nreturn [{ json: { success: true, module, enabled,\n  paused: staticData.paused === true,\n  calls_enabled: staticData.calls_enabled !== false,\n  sms_enabled: staticData.sms_enabled !== false,\n  preview_enabled: staticData.preview_enabled !== false\n} }];"
       }
     },
     {
@@ -819,6 +819,135 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (staticData.sms_enabled === false) return [];\nreturn $input.all();"
+      }
+    },
+    {
+      "id": "wh-get-leads",
+      "name": "Lese Leads Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        1120
+      ],
+      "webhookId": "get-leads-wh",
+      "parameters": {
+        "path": "get-leads",
+        "responseMode": "responseNode",
+        "httpMethod": "GET"
+      }
+    },
+    {
+      "id": "code-get-leads",
+      "name": "Lese Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        1120
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst leads = (staticData.leads || []).slice(-15).reverse();\nconst today = new Date().toISOString().slice(0,10);\n\nlet text = 'LEADS LISTE (' + leads.length + '):\\n\\n';\nif (leads.length === 0) {\n  text += 'Noch keine Leads gespeichert.';\n} else {\n  leads.forEach((l, i) => {\n    const mapsUrl = l.place_id\n      ? 'https://maps.google.com/?cid=' + l.place_id\n      : 'https://www.google.com/maps/search/' + encodeURIComponent(l.business_name || '');\n    const previewUrl = l.preview_url || '';\n    text += (i+1) + '. ' + (l.business_name || '?') + '\\n';\n    text += '   Tel: ' + (l.phone || '-') + '\\n';\n    text += '   Maps: ' + mapsUrl + '\\n';\n    if (previewUrl) text += '   Preview: ' + previewUrl + '\\n';\n    text += '   Status: ' + (l.outcome || l.status || 'neu') + '\\n';\n    text += '\\n';\n  });\n}\n\nreturn [{ json: { leads_text: text } }];"
+      }
+    },
+    {
+      "id": "resp-get-leads",
+      "name": "Leads Antwort",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        640,
+        1120
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"leads_text\": \"{{ $json.leads_text }}\" }"
+      }
+    },
+    {
+      "id": "wh-get-einstellungen",
+      "name": "Lese Einstellungen Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        1280
+      ],
+      "webhookId": "get-einstellungen-wh",
+      "parameters": {
+        "path": "get-einstellungen",
+        "responseMode": "responseNode",
+        "httpMethod": "GET"
+      }
+    },
+    {
+      "id": "code-get-einstellungen",
+      "name": "Lese Einstellungen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        1280
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst cfg = staticData.config || {};\nconst cities = cfg.cities || ['Savannah','Atlanta','Charlotte','Nashville','Memphis'];\nconst industries = cfg.industries || ['electrician','plumber','HVAC contractor','roofer','landscaper'];\nconst maxCalls = cfg.max_calls || 10;\n\nlet text = 'EINSTELLUNGEN:\\n\\n';\ntext += 'Staedte: ' + cities.join(', ') + '\\n';\ntext += 'Branchen: ' + industries.join(', ') + '\\n';\ntext += 'Max Anrufe/Tag: ' + maxCalls + '\\n\\n';\ntext += 'Aendern: Schreib einfach z.B.:\\n';\ntext += '- \"Fuge Berlin hinzu\"\\n';\ntext += '- \"Mach max 8 Anrufe\"\\n';\ntext += '- \"Entferne Miami\"\\n';\ntext += '- \"Nur Restaurants anrufen\"';\n\nreturn [{ json: { einstellungen_text: text, cities, industries, max_calls: maxCalls } }];"
+      }
+    },
+    {
+      "id": "resp-get-einstellungen",
+      "name": "Einstellungen Antwort",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        640,
+        1280
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"einstellungen_text\": \"{{ $json.einstellungen_text }}\" }"
+      }
+    },
+    {
+      "id": "wh-set-config",
+      "name": "Set Config Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        1440
+      ],
+      "webhookId": "set-config-wh",
+      "parameters": {
+        "path": "set-config",
+        "responseMode": "responseNode",
+        "httpMethod": "POST"
+      }
+    },
+    {
+      "id": "code-set-config",
+      "name": "Speichere Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        1440
+      ],
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst action = body.action;\nconst value = body.value;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.config) staticData.config = {};\n\nlet reply = 'Erledigt.';\n\nif (action === 'set_cities') {\n  staticData.config.cities = Array.isArray(value) ? value : [value];\n  reply = 'Staedte gesetzt: ' + staticData.config.cities.join(', ');\n} else if (action === 'add_city') {\n  if (!staticData.config.cities) staticData.config.cities = [];\n  if (!staticData.config.cities.includes(value)) staticData.config.cities.push(value);\n  reply = 'Stadt hinzugefuegt: ' + value;\n} else if (action === 'remove_city') {\n  if (staticData.config.cities) {\n    staticData.config.cities = staticData.config.cities.filter(c => c.toLowerCase() !== String(value).toLowerCase());\n  }\n  reply = 'Stadt entfernt: ' + value;\n} else if (action === 'set_industries') {\n  staticData.config.industries = Array.isArray(value) ? value : [value];\n  reply = 'Branchen gesetzt: ' + staticData.config.industries.join(', ');\n} else if (action === 'set_max_calls') {\n  staticData.config.max_calls = parseInt(value) || 10;\n  reply = 'Max Anrufe pro Tag: ' + staticData.config.max_calls;\n} else if (action === 'reset_config') {\n  staticData.config = {};\n  reply = 'Einstellungen zurueckgesetzt auf Standard.';\n}\n\nreturn [{ json: { success: true, action, reply } }];"
+      }
+    },
+    {
+      "id": "resp-set-config",
+      "name": "Config Antwort",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        640,
+        1440
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"reply\": \"{{ $json.reply }}\" }"
       }
     }
   ],
@@ -1166,6 +1295,72 @@
         [
           {
             "node": "Status Antwort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lese Leads Webhook": {
+      "main": [
+        [
+          {
+            "node": "Lese Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lese Leads": {
+      "main": [
+        [
+          {
+            "node": "Leads Antwort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lese Einstellungen Webhook": {
+      "main": [
+        [
+          {
+            "node": "Lese Einstellungen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lese Einstellungen": {
+      "main": [
+        [
+          {
+            "node": "Einstellungen Antwort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Config Webhook": {
+      "main": [
+        [
+          {
+            "node": "Speichere Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Speichere Config": {
+      "main": [
+        [
+          {
+            "node": "Config Antwort",
             "type": "main",
             "index": 0
           }
