@@ -172,28 +172,34 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.twilio.com/2010-04-01/Accounts/TWILIO_ACCOUNT_SID/Messages.json",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpBasicAuth",
-        "sendBody": true,
-        "contentType": "form-urlencoded",
-        "bodyParameters": {
+        "url": "https://api.telnyx.com/v2/messages",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
             {
-              "name": "From",
-              "value": "+19129376819"
+              "name": "Authorization",
+              "value": "Bearer TELNYX_API_KEY"
             },
             {
-              "name": "To",
-              "value": "=+1{{ $json.phone }}"
-            },
-            {
-              "name": "Body",
-              "value": "={{ $json.wa_message }}"
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
-        "options": {}
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "from": "+1TELNYX_TOLL_FREE_NUMBER",
+          "to": "={{ '+1' + $json.phone.replace(/[^0-9]/g, '').slice(-10) }}",
+          "text": "={{ $json.wa_message }}"
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
       "id": "node-whatsapp",
       "name": "Send SMS with Demo Link",
@@ -203,13 +209,7 @@
         1800,
         400
       ],
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "httpBasicAuth": {
-          "id": "zOnSyynZ4phmT2md",
-          "name": "Twilio SMS (Team Gold)"
-        }
-      }
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {

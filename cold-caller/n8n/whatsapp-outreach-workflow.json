@@ -1,15 +1,23 @@
 {
-  "name": "WhatsApp Outreach Pipeline",
+  "name": "SMS Outreach Pipeline (Telnyx)",
   "nodes": [
     {
       "id": "sched-wa",
       "name": "Run Daily 10am (Mon-Fri)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 300],
+      "position": [
+        200,
+        300
+      ],
       "parameters": {
         "rule": {
-          "interval": [{"field": "cronExpression", "expression": "0 10 * * 1-5"}]
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * 1-5"
+            }
+          ]
         }
       }
     },
@@ -18,7 +26,10 @@
       "name": "Manual Start (Telegram)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 460],
+      "position": [
+        200,
+        460
+      ],
       "webhookId": "wa-start-tg",
       "parameters": {
         "path": "start-whatsapp-tg",
@@ -31,7 +42,10 @@
       "name": "Set Config & Target",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 380],
+      "position": [
+        420,
+        380
+      ],
       "parameters": {
         "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst cfg = staticData.config || {};\n\nconst CITIES = cfg.cities || [\n  'Savannah','Atlanta','Charlotte','Nashville','Memphis',\n  'Jacksonville','Orlando','Tampa','Miami','Houston'\n];\nconst INDUSTRIES = cfg.industries || [\n  'electrician','plumber','HVAC contractor','roofer','landscaper',\n  'painter','handyman','cleaning service','pest control','concrete contractor'\n];\nconst maxMsg = cfg.max_whatsapp || 20;\n\nconst combos = [];\nconst used = new Set();\nwhile (combos.length < 8 && combos.length < CITIES.length * INDUSTRIES.length) {\n  const c = CITIES[Math.floor(Math.random() * CITIES.length)];\n  const i = INDUSTRIES[Math.floor(Math.random() * INDUSTRIES.length)];\n  const key = c + '|' + i;\n  if (!used.has(key)) { used.add(key); combos.push({city:c, industry:i}); }\n}\n\nreturn combos.map(x => ({ json: { ...x, max_messages: maxMsg } }));"
       }
@@ -41,15 +55,24 @@
       "name": "Google Places — Find Businesses",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [640, 380],
+      "position": [
+        640,
+        380
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://places.googleapis.com/v1/places:searchText",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "X-Goog-Api-Key", "value": "GOOGLE_PLACES_API_KEY"},
-            {"name": "X-Goog-FieldMask", "value": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.id,places.rating,places.userRatingCount"}
+            {
+              "name": "X-Goog-Api-Key",
+              "value": "GOOGLE_PLACES_API_KEY"
+            },
+            {
+              "name": "X-Goog-FieldMask",
+              "value": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.id,places.rating,places.userRatingCount"
+            }
           ]
         },
         "sendBody": true,
@@ -67,7 +90,10 @@
       "name": "Filter: No Website + Has Phone",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [860, 380],
+      "position": [
+        860,
+        380
+      ],
       "parameters": {
         "jsCode": "const results = [];\nfor (const item of $input.all()) {\n  const places = item.json.places || [];\n  const prevNode = $('Set Config & Target');\n  const industry = prevNode.first ? prevNode.first().json.industry : (prevNode.item || {}).json.industry || '';\n  const city = prevNode.first ? prevNode.first().json.city : (prevNode.item || {}).json.city || '';\n  for (const p of places) {\n    if (p.websiteUri) continue;\n    const phone = p.nationalPhoneNumber || '';\n    if (!phone) continue;\n    results.push({ json: {\n      business_name: p.displayName?.text || '',\n      phone,\n      industry,\n      city,\n      rating: p.rating || 0,\n      reviews_count: p.userRatingCount || 0,\n      place_id: p.id || '',\n      address: p.formattedAddress || ''\n    }});\n    if (results.length >= 5) break;\n  }\n  if (results.length >= 5) break;\n}\nreturn results;"
       }
@@ -77,7 +103,10 @@
       "name": "Skip If Already Messaged",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1080, 380],
+      "position": [
+        1080,
+        380
+      ],
       "parameters": {
         "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.whatsappMessaged) staticData.whatsappMessaged = {};\n\nconst out = [];\nconst maxMsg = 20;\n\nfor (const item of $input.all()) {\n  const l = item.json;\n  let digits = String(l.phone || '').replace(/[^0-9]/g, '');\n  if (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1);\n  if (digits.length !== 10) continue;\n  if (staticData.whatsappMessaged[digits]) continue;\n  if (out.length >= maxMsg) break;\n  out.push({ json: { ...l, phone_digits: digits } });\n}\nreturn out;"
       }
@@ -87,37 +116,52 @@
       "name": "Generate Preview & Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1300, 380],
+      "position": [
+        1300,
+        380
+      ],
       "parameters": {
-        "jsCode": "const l = $input.first().json;\nconst previewUrl = 'https://teamgoldllc.de/preview?business=' +\n  encodeURIComponent(l.business_name || '') +\n  '&industry=' + encodeURIComponent(l.industry || '') +\n  '&city=' + encodeURIComponent(l.city || '') +\n  '&rating=' + (l.rating || '') +\n  '&reviews=' + (l.reviews_count || '');\n\nconst mapsUrl = l.place_id\n  ? 'https://maps.google.com/?cid=' + l.place_id\n  : 'https://www.google.com/maps/search/' + encodeURIComponent(l.business_name || '');\n\nconst msg = `Hey, this is Atakan from Team Gold! 👋\n\nI was looking you guys up on Google and noticed you don't have a website yet. I know this is kinda random, but I went ahead and built one for you — check it out:\n\n${previewUrl}\n\nIf you want us to finalize it and get you more customers online, just reply YES. 📥\n\nJust say STOP if you want me to stop 🙏`;\n\nreturn [{ json: { ...l, preview_url: previewUrl, maps_url: mapsUrl, wa_message: msg } }];"
+        "jsCode": "const l = $input.first().json;\nconst previewUrl = 'https://teamgoldllc.de/preview?business=' +\n  encodeURIComponent(l.business_name || '') +\n  '&industry=' + encodeURIComponent(l.industry || '') +\n  '&city=' + encodeURIComponent(l.city || '') +\n  '&rating=' + (l.rating || '') +\n  '&reviews=' + (l.reviews_count || '');\n\nconst mapsUrl = l.place_id\n  ? 'https://maps.google.com/?cid=' + l.place_id\n  : 'https://www.google.com/maps/search/' + encodeURIComponent(l.business_name || '');\n\nconst smsMessage = `Hey, this is Atakan from Team Gold! I saw you on Google and noticed you don't have a website. I built one for you: ${previewUrl}\n\nReply YES to get it live, or STOP to opt out.`;\n\nreturn [{ json: { ...l, preview_url: previewUrl, maps_url: mapsUrl, sms_message: smsMessage } }];"
       }
     },
     {
       "id": "http-wa-send",
-      "name": "Send WhatsApp Message",
+      "name": "Send SMS (Telnyx)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1520, 380],
+      "position": [
+        1520,
+        380
+      ],
       "parameters": {
         "method": "POST",
-        "url": "https://api.twilio.com/2010-04-01/Accounts/TWILIO_ACCOUNT_SID/Messages.json",
+        "url": "https://api.telnyx.com/v2/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "Authorization", "value": "Basic TWILIO_AUTH_BASE64"}
+            {
+              "name": "Authorization",
+              "value": "Bearer TELNYX_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
-        "contentType": "form-urlencoded",
-        "bodyParameters": {
-          "parameters": [
-            {"name": "From", "value": "whatsapp:+19129376819"},
-            {"name": "To", "value": "={{ 'whatsapp:+1' + $json.phone_digits }}"},
-            {"name": "Body", "value": "={{ $json.wa_message }}"}
-          ]
+        "contentType": "json",
+        "body": {
+          "from": "+1TELNYX_TOLL_FREE_NUMBER",
+          "to": "={{ '+1' + $json.phone_digits }}",
+          "text": "={{ $json.sms_message }}"
         },
         "options": {
-          "response": {"response": {"neverError": true}}
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
         }
       }
     },
@@ -126,35 +170,50 @@
       "name": "Save & Mark Messaged",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1740, 380],
+      "position": [
+        1740,
+        380
+      ],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst l = $('Generate Preview & Message').first().json;\nconst today = new Date().toISOString().slice(0,10);\nconst digits = l.phone_digits;\n\nif (!staticData.whatsappMessaged) staticData.whatsappMessaged = {};\nstaticData.whatsappMessaged[digits] = { at: new Date().toISOString(), name: l.business_name };\n\nif (!staticData.whatsappLeads) staticData.whatsappLeads = [];\nstaticData.whatsappLeads.push({\n  business_name: l.business_name,\n  phone: l.phone,\n  phone_digits: digits,\n  industry: l.industry,\n  city: l.city,\n  preview_url: l.preview_url,\n  maps_url: l.maps_url,\n  status: 'sent',\n  sent_at: new Date().toISOString()\n});\nif (staticData.whatsappLeads.length > 500) staticData.whatsappLeads = staticData.whatsappLeads.slice(-500);\n\nif (!staticData.whatsappDailyCosts) staticData.whatsappDailyCosts = {};\nif (!staticData.whatsappDailyCosts[today]) staticData.whatsappDailyCosts[today] = {count:0, cost:0};\nstaticData.whatsappDailyCosts[today].count++;\nstaticData.whatsappDailyCosts[today].cost = parseFloat((staticData.whatsappDailyCosts[today].count * 0.025).toFixed(4));\n\nreturn [{ json: { ...l, saved: true } }];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst l = $('Generate Preview & Message').first().json;\nconst today = new Date().toISOString().slice(0,10);\nconst digits = l.phone_digits;\n\nif (!staticData.smsMessaged) staticData.smsMessaged = {};\nstaticData.smsMessaged[digits] = { at: new Date().toISOString(), name: l.business_name };\n\nif (!staticData.smsLeads) staticData.smsLeads = [];\nstaticData.smsLeads.push({\n  business_name: l.business_name,\n  phone: l.phone,\n  phone_digits: digits,\n  industry: l.industry,\n  city: l.city,\n  preview_url: l.preview_url,\n  maps_url: l.maps_url,\n  status: 'sent',\n  sent_at: new Date().toISOString()\n});\nif (staticData.smsLeads.length > 500) staticData.smsLeads = staticData.smsLeads.slice(-500);\n\nif (!staticData.smsDailyCosts) staticData.smsDailyCosts = {};\nif (!staticData.smsDailyCosts[today]) staticData.smsDailyCosts[today] = {count:0, cost:0};\nstaticData.smsDailyCosts[today].count++;\nstaticData.smsDailyCosts[today].cost = parseFloat((staticData.smsDailyCosts[today].count * 0.004).toFixed(4));\n\nreturn [{ json: { ...l, saved: true } }];"
       }
     },
     {
       "id": "code-agg-wa",
-      "name": "Agg: WhatsApp Report",
+      "name": "Agg: SMS Report",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1960, 380],
+      "position": [
+        1960,
+        380
+      ],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst today = new Date().toISOString().slice(0,10);\nconst dayData = (staticData.whatsappDailyCosts || {})[today] || {count:0, cost:0};\nconst sent = $input.all();\n\nlet text = 'WHATSAPP OUTREACH ABGESCHLOSSEN\\n\\n';\ntext += 'Heute gesendet: ' + dayData.count + ' Nachrichten\\n';\ntext += 'Kosten heute: $' + dayData.cost.toFixed(4) + '\\n\\n';\n\nif (sent.length > 0) {\n  text += 'Diese Runde:\\n';\n  sent.forEach(s => {\n    const l = s.json;\n    text += '  - ' + (l.business_name||'?') + ' (' + (l.city||'') + ')\\n';\n  });\n}\n\nreturn [{ json: { report_text: text } }];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst today = new Date().toISOString().slice(0,10);\nconst dayData = (staticData.smsDailyCosts || {})[today] || {count:0, cost:0};\nconst sent = $input.all();\n\nlet text = 'SMS OUTREACH ABGESCHLOSSEN\\n\\n';\ntext += 'Heute gesendet: ' + dayData.count + ' SMS\\n';\ntext += 'Kosten heute: $' + dayData.cost.toFixed(4) + '\\n\\n';\n\nif (sent.length > 0) {\n  text += 'Diese Runde:\\n';\n  sent.forEach(s => {\n    const l = s.json;\n    text += '  - ' + (l.business_name||'?') + ' (' + (l.city||'') + ')\\n';\n  });\n}\n\nreturn [{ json: { report_text: text } }];"
       }
     },
     {
       "id": "tg-wa-report",
-      "name": "TG: WhatsApp Bericht",
+      "name": "TG: SMS Bericht",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [2180, 380],
+      "position": [
+        2180,
+        380
+      ],
       "parameters": {
         "method": "GET",
         "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            {"name": "chat_id", "value": "5381600986"},
-            {"name": "text", "value": "={{ $json.report_text }}"}
+            {
+              "name": "chat_id",
+              "value": "5381600986"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.report_text }}"
+            }
           ]
         },
         "options": {}
@@ -162,18 +221,124 @@
     }
   ],
   "connections": {
-    "Run Daily 10am (Mon-Fri)": {"main": [[{"node": "Set Config & Target", "type": "main", "index": 0}]]},
-    "Manual Start (Telegram)": {"main": [[{"node": "Set Config & Target", "type": "main", "index": 0}]]},
-    "Set Config & Target": {"main": [[{"node": "Google Places — Find Businesses", "type": "main", "index": 0}]]},
-    "Google Places — Find Businesses": {"main": [[{"node": "Filter: No Website + Has Phone", "type": "main", "index": 0}]]},
-    "Filter: No Website + Has Phone": {"main": [[{"node": "Skip If Already Messaged", "type": "main", "index": 0}]]},
-    "Skip If Already Messaged": {"main": [[{"node": "Generate Preview & Message", "type": "main", "index": 0}]]},
-    "Generate Preview & Message": {"main": [[{"node": "Send WhatsApp Message", "type": "main", "index": 0}]]},
-    "Send WhatsApp Message": {"main": [[{"node": "Save & Mark Messaged", "type": "main", "index": 0}]]},
-    "Save & Mark Messaged": {"main": [[{"node": "Agg: WhatsApp Report", "type": "main", "index": 0}]]},
-    "Agg: WhatsApp Report": {"main": [[{"node": "TG: WhatsApp Bericht", "type": "main", "index": 0}]]}
+    "Run Daily 10am (Mon-Fri)": {
+      "main": [
+        [
+          {
+            "node": "Set Config & Target",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Start (Telegram)": {
+      "main": [
+        [
+          {
+            "node": "Set Config & Target",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Config & Target": {
+      "main": [
+        [
+          {
+            "node": "Google Places — Find Businesses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Places — Find Businesses": {
+      "main": [
+        [
+          {
+            "node": "Filter: No Website + Has Phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: No Website + Has Phone": {
+      "main": [
+        [
+          {
+            "node": "Skip If Already Messaged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip If Already Messaged": {
+      "main": [
+        [
+          {
+            "node": "Generate Preview & Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Preview & Message": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save & Mark Messaged": {
+      "main": [
+        [
+          {
+            "node": "Agg: SMS Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS (Telnyx)": {
+      "main": [
+        [
+          {
+            "node": "Save & Mark Messaged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agg: SMS Report": {
+      "main": [
+        [
+          {
+            "node": "TG: SMS Bericht",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": {"executionOrder": "v1"},
+  "settings": {
+    "executionOrder": "v1"
+  },
   "staticData": null,
-  "tags": [{"name": "whatsapp-outreach"}]
+  "tags": [
+    {
+      "name": "whatsapp-outreach"
+    }
+  ]
 }
