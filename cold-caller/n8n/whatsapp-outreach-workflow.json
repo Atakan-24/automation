@@ -291,7 +291,7 @@
       "main": [
         [
           {
-            "node": "Send WhatsApp Message",
+            "node": "Send SMS (Telnyx)",
             "type": "main",
             "index": 0
           }
