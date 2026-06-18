@@ -21,7 +21,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const ALLOWED_CHAT = '5381600986';\nconst upd = $input.first().json.body || $input.first().json;\nconst msg = upd.message || {};\nconst callback = upd.callback_query || null;\nconst chatId = String(\n  (msg.chat || {}).id ||\n  ((callback && callback.message && callback.message.chat) ? callback.message.chat.id : '') ||\n  ''\n);\nconst rawText = callback ? (callback.data || '') : (msg.text || '');\nconst text = rawText.trim().toLowerCase();\n\nif (chatId !== ALLOWED_CHAT) {\n  return [{ json: { action: 'ignore', chat_id: chatId, toggle_msg: '__IGNORE__' } }];\n}\n\nconst isCallback = !!callback;\nconst callbackQueryId = callback ? callback.id : null;\n\nconst TOGGLES = {\n  '/stop':'stop','stop':'stop',\n  '/resume':'resume','resume':'resume','/weiter':'resume','weiter':'resume',\n  '/anrufe aus':'calls_off','anrufe aus':'calls_off',\n  '/anrufe an':'calls_on','anrufe an':'calls_on',\n  '/sms aus':'sms_off','sms aus':'sms_off',\n  '/sms an':'sms_on','sms an':'sms_on',\n  '/preview aus':'preview_off','preview aus':'preview_off',\n  '/preview an':'preview_on','preview an':'preview_on',\n};\nconst TOGGLE_PAYLOADS = {\n  stop: {module:'paused',enabled:true},\n  resume: {module:'paused',enabled:false},\n  calls_off: {module:'calls',enabled:false},\n  calls_on: {module:'calls',enabled:true},\n  sms_off: {module:'sms',enabled:false},\n  sms_on: {module:'sms',enabled:true},\n  preview_off: {module:'preview',enabled:false},\n  preview_on: {module:'preview',enabled:true},\n};\nconst TOGGLE_MSGS = {\n  stop: 'GESTOPPT. Keine Anrufe mehr bis /resume.',\n  resume: 'AKTIV. Pipeline laeuft wieder normal.',\n  calls_off: 'Anrufe deaktiviert. SMS und Preview laufen weiter.',\n  calls_on: 'Anrufe wieder aktiviert.',\n  sms_off: 'SMS deaktiviert.',\n  sms_on: 'SMS wieder aktiviert.',\n  preview_off: 'Website-Preview deaktiviert.',\n  preview_on: 'Website-Preview wieder aktiviert.',\n  help: '__HELP__',\n  ignore: '__IGNORE__',\n};\n\nlet action = 'ai';\nif (text === '/start' || text === 'start' || text === '/run' || text === 'los') action = 'start';\nelse if (text === '/bericht' || text === 'bericht' || text === '/report' || text === 'report') action = 'report';\nelse if (text === '/demo' || text === 'demo' || text === 'testanruf') action = 'demo';\nelse if (text === '/status' || text === 'status') action = 'status';\nelse if (text === '/leads' || text === 'leads') action = 'leads';\nelse if (text === '/einstellungen' || text === 'einstellungen' || text === '/settings') action = 'einstellungen';\nelse if (text === '/help' || text === '/hilfe' || text === 'help' || text === 'hilfe') action = 'help';\nelse if (TOGGLES[text]) action = TOGGLES[text];\nelse if (text.startsWith('/')) action = 'help';\n\nconst togglePayload = TOGGLE_PAYLOADS[action] || null;\nconst toggleMsg = TOGGLE_MSGS[action] || null;\n\nreturn [{ json: {\n  action,\n  chat_id: chatId,\n  text: rawText,\n  toggle_payload: togglePayload ? JSON.stringify(togglePayload) : null,\n  toggle_msg: toggleMsg,\n  is_callback: isCallback,\n  callback_query_id: callbackQueryId,\n} }];"
+        "jsCode": "const ALLOWED_CHAT = '5381600986';\nconst upd = $input.first().json.body || $input.first().json;\nconst msg = upd.message || {};\nconst callback = upd.callback_query || null;\nconst chatId = String(\n  (msg.chat || {}).id ||\n  ((callback && callback.message && callback.message.chat) ? callback.message.chat.id : '') ||\n  ''\n);\nconst rawText = callback ? (callback.data || '') : (msg.text || '');\nconst text = rawText.trim().toLowerCase();\n\nif (chatId !== ALLOWED_CHAT) {\n  return [{ json: { action: 'ignore', chat_id: chatId, toggle_msg: '__IGNORE__' } }];\n}\n\nconst isCallback = !!callback;\nconst callbackQueryId = callback ? callback.id : null;\n\nconst TOGGLES = {\n  '/stop':'stop','stop':'stop',\n  '/resume':'resume','resume':'resume','/weiter':'resume','weiter':'resume',\n  '/anrufe aus':'calls_off','anrufe aus':'calls_off',\n  '/anrufe an':'calls_on','anrufe an':'calls_on',\n  '/sms aus':'sms_off','sms aus':'sms_off',\n  '/sms an':'sms_on','sms an':'sms_on',\n  '/preview aus':'preview_off','preview aus':'preview_off',\n  '/preview an':'preview_on','preview an':'preview_on',\n};\nconst TOGGLE_PAYLOADS = {\n  stop: {module:'paused',enabled:true},\n  resume: {module:'paused',enabled:false},\n  calls_off: {module:'calls',enabled:false},\n  calls_on: {module:'calls',enabled:true},\n  sms_off: {module:'sms',enabled:false},\n  sms_on: {module:'sms',enabled:true},\n  preview_off: {module:'preview',enabled:false},\n  preview_on: {module:'preview',enabled:true},\n};\nconst TOGGLE_MSGS = {\n  stop: 'GESTOPPT. Keine WhatsApp-Nachrichten mehr bis /resume.',\n  resume: 'AKTIV. WhatsApp-Outreach laeuft wieder.',\n  calls_off: 'Anrufe deaktiviert (Backup-System).',\n  calls_on: 'Anrufe wieder aktiviert.',\n  sms_off: 'SMS deaktiviert.',\n  sms_on: 'SMS wieder aktiviert.',\n  preview_off: 'Website-Preview deaktiviert.',\n  preview_on: 'Website-Preview wieder aktiviert.',\n  help: '__HELP__',\n  ignore: '__IGNORE__',\n};\n\nlet action = 'ai';\nlet waReplyPhone = null;\nlet waReplyText = null;\n\n// /r <phone> <message> — WhatsApp reply from Telegram\nif (text.startsWith('/r ') || text.startsWith('r ')) {\n  const parts = rawText.trim().split(' ');\n  parts.shift(); // remove /r\n  const maybePhone = (parts[0] || '').replace(/[^0-9]/g, '');\n  if (maybePhone.length >= 10) {\n    waReplyPhone = maybePhone;\n    waReplyText = parts.slice(1).join(' ');\n    action = 'wa_reply';\n  } else {\n    // /r without phone — reply to last sender\n    action = 'wa_reply_last';\n    waReplyText = parts.join(' ');\n  }\n} else if (text === '/start' || text === 'start' || text === '/run' || text === 'los') action = 'start';\nelse if (text === '/bericht' || text === 'bericht' || text === '/report' || text === 'report') action = 'report';\nelse if (text === '/demo' || text === 'demo' || text === 'testanruf') action = 'demo';\nelse if (text === '/status' || text === 'status') action = 'status';\nelse if (text === '/leads' || text === 'leads') action = 'leads';\nelse if (text === '/einstellungen' || text === 'einstellungen' || text === '/settings') action = 'einstellungen';\nelse if (text === '/help' || text === '/hilfe' || text === 'help' || text === 'hilfe') action = 'help';\nelse if (TOGGLES[text]) action = TOGGLES[text];\nelse if (text.startsWith('/')) action = 'help';\n\nconst togglePayload = TOGGLE_PAYLOADS[action] || null;\nconst toggleMsg = TOGGLE_MSGS[action] || null;\n\nreturn [{ json: {\n  action,\n  chat_id: chatId,\n  text: rawText,\n  toggle_payload: togglePayload ? JSON.stringify(togglePayload) : null,\n  toggle_msg: toggleMsg,\n  is_callback: isCallback,\n  callback_query_id: callbackQueryId,\n  wa_reply_phone: waReplyPhone,\n  wa_reply_text: waReplyText,\n} }];"
       },
       "id": "code-parse",
       "name": "Befehl Erkennen",
@@ -66,7 +66,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://217.154.67.223/webhook/start-pipeline-tg",
+        "url": "http://217.154.67.223/webhook/start-whatsapp-tg",
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
@@ -98,7 +98,7 @@
             },
             {
               "name": "text",
-              "value": "PIPELINE GESTARTET! Du bekommst gleich die Updates zu jedem Schritt."
+              "value": "WHATSAPP OUTREACH GESTARTET! Suche nach Leads und schicke Nachrichten..."
             }
           ]
         },
@@ -127,7 +127,7 @@
             },
             {
               "name": "text",
-              "value": "Befehle:\nstart - Pipeline sofort starten (sucht Leads + ruft an)\ndemo - Ryan ruft DICH zum Test an\nbericht - Tagesbericht mit allen Anruf-Ergebnissen\nstatus - System Status\n\nAutomatisch: Pipeline Mo-Fr 9am EDT, Tagesbericht Mo-Fr 18 Uhr (EDT)."
+              "value": "BEFEHLE:\nstart - WhatsApp-Outreach jetzt starten (sucht Leads + schickt Nachrichten)\nbericht - Tagesbericht\nstatus - System Status (was laeuft, Kosten heute)\nleads - Letzte Leads\n\nWHATSAPP ANTWORTEN:\n/r <Nummer> <Text> - Auf WhatsApp antworten\nBeispiel: /r 19125550147 Hallo! Danke fuer dein Interesse...\n\nSTEUERUNG:\n/stop - Outreach pausieren\n/resume - Outreach wieder starten\n\nAutomatisch: Outreach Mo-Fr 10am EDT."
             }
           ]
         },
@@ -763,6 +763,74 @@
         },
         "options": {}
       }
+    },
+    {
+      "id": "if-wa-reply",
+      "name": "Ist WhatsApp-Antwort?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [640, 560],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Befehl Erkennen').first().json.action }}",
+              "rightValue": "wa_reply",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "http-wa-reply",
+      "name": "WhatsApp Antwort Senden",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [860, 480],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/WHATSAPP_PHONE_NUMBER_ID/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer WHATSAPP_ACCESS_TOKEN" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  messaging_product: 'whatsapp',\n  to: $('Befehl Erkennen').first().json.wa_reply_phone,\n  type: 'text',\n  text: { body: $('Befehl Erkennen').first().json.wa_reply_text }\n}) }}",
+        "options": { "timeout": 10000 }
+      }
+    },
+    {
+      "id": "tg-wa-reply-confirm",
+      "name": "TG: Antwort Gesendet",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1080, 480],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "5381600986" },
+            {
+              "name": "text",
+              "value": "={{ $json.messages ? '✅ WhatsApp gesendet an +' + $('Befehl Erkennen').first().json.wa_reply_phone : '❌ Fehler: ' + JSON.stringify($json).substring(0,200) }}"
+            }
+          ]
+        },
+        "options": {}
+      }
     }
   ],
   "connections": {
@@ -787,6 +855,11 @@
           },
           {
             "node": "Ist Start-Befehl?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Ist WhatsApp-Antwort?",
             "type": "main",
             "index": 0
           }
@@ -1035,6 +1108,17 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Ist WhatsApp-Antwort?": {
+      "main": [
+        [{ "node": "WhatsApp Antwort Senden", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "WhatsApp Antwort Senden": {
+      "main": [
+        [{ "node": "TG: Antwort Gesendet", "type": "main", "index": 0 }]
       ]
     }
   },

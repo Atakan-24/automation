@@ -1,0 +1,216 @@
+{
+  "name": "WhatsApp Inbound — Nachrichten → Telegram",
+  "nodes": [
+    {
+      "id": "wh-inbound",
+      "name": "WhatsApp Inbound Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "whatsapp-inbound",
+      "parameters": {
+        "path": "whatsapp-inbound",
+        "responseMode": "onReceived",
+        "httpMethod": "GET"
+      }
+    },
+    {
+      "id": "wh-inbound-post",
+      "name": "WhatsApp Message Received",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 460],
+      "webhookId": "whatsapp-inbound-post",
+      "parameters": {
+        "path": "whatsapp-inbound",
+        "responseMode": "onReceived",
+        "httpMethod": "POST"
+      }
+    },
+    {
+      "id": "code-verify",
+      "name": "Meta Webhook Verify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300],
+      "parameters": {
+        "jsCode": "const q = $input.first().json.query || {};\nconst VERIFY_TOKEN = 'WHATSAPP_VERIFY_TOKEN';\nif (q['hub.verify_token'] === VERIFY_TOKEN) {\n  return [{ json: { challenge: q['hub.challenge'] } }];\n}\nreturn [{ json: { error: 'invalid token' } }];"
+      }
+    },
+    {
+      "id": "http-challenge",
+      "name": "Return Challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [640, 300],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}"
+      }
+    },
+    {
+      "id": "code-parse-msg",
+      "name": "Parse WhatsApp Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 460],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $input.first().json.body || $input.first().json;\n\n// Extract message from Meta webhook payload\nlet from = '';\nlet text = '';\nlet senderName = '';\n\ntry {\n  const entry = (body.entry || [])[0] || {};\n  const change = (entry.changes || [])[0] || {};\n  const value = change.value || {};\n  const msg = (value.messages || [])[0] || {};\n  const contact = (value.contacts || [])[0] || {};\n\n  from = msg.from || ''; // e.g. '19125550147'\n  text = (msg.text || {}).text || '';\n  senderName = (contact.profile || {}).name || from;\n} catch(e) {\n  return [{ json: { skip: true } }];\n}\n\nif (!from || !text) return [{ json: { skip: true } }];\n\n// Store last sender for /r reply feature\nstaticData.lastWaSender = { phone: from, name: senderName, at: new Date().toISOString() };\n\nconst textLower = text.trim().toLowerCase();\nlet action = 'forward';\nif (textLower === 'yes' || textLower === 'ja' || textLower.includes('interested')) action = 'hot_lead';\nif (textLower === 'stop' || textLower === 'opt out' || textLower === 'unsubscribe') action = 'optout';\n\nreturn [{ json: { from, text, sender_name: senderName, action } }];"
+      }
+    },
+    {
+      "id": "if-skip",
+      "name": "Gueltige Nachricht?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [640, 460],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "if-action",
+      "name": "Welche Aktion?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [860, 380],
+      "parameters": {
+        "mode": "expression",
+        "output": "={{ $json.action }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "http-optout-call",
+      "name": "Opt-Out Speichern",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1080, 280],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/wa-optout",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ phone: $json.from }) }}",
+        "options": { "timeout": 5000 }
+      }
+    },
+    {
+      "id": "tg-hot-lead",
+      "name": "TG: Heisser Lead!",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1080, 400],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "5381600986" },
+            {
+              "name": "text",
+              "value": "={{ '🔥 HEISSER LEAD!\\n\\nName: ' + $json.sender_name + '\\nNummer: +' + $json.from + '\\n\\nHat YES geantwortet! Website bauen und zurueckschreiben:\\n/r ' + $json.from + ' Hallo! Ich freue mich ueber dein Interesse...' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "tg-forward",
+      "name": "TG: Nachricht Weiterleiten",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1080, 520],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "5381600986" },
+            {
+              "name": "text",
+              "value": "={{ '📱 WhatsApp von: ' + $json.sender_name + '\\nNummer: +' + $json.from + '\\n\\n\"' + $json.text + '\"\\n\\nAntworten: /r ' + $json.from + ' <deine Antwort>' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "tg-optout-confirm",
+      "name": "TG: Opt-Out Bestaetigt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1300, 280],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "5381600986" },
+            {
+              "name": "text",
+              "value": "={{ '🚫 Opt-Out: ' + $json.sender_name + ' (+' + $json.from + ') will keine Nachrichten mehr. Automatisch aus der Liste entfernt.' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "WhatsApp Inbound Webhook": {
+      "main": [[{ "node": "Meta Webhook Verify", "type": "main", "index": 0 }]]
+    },
+    "Meta Webhook Verify": {
+      "main": [[{ "node": "Return Challenge", "type": "main", "index": 0 }]]
+    },
+    "WhatsApp Message Received": {
+      "main": [[{ "node": "Parse WhatsApp Message", "type": "main", "index": 0 }]]
+    },
+    "Parse WhatsApp Message": {
+      "main": [[{ "node": "Gueltige Nachricht?", "type": "main", "index": 0 }]]
+    },
+    "Gueltige Nachricht?": {
+      "main": [
+        [{ "node": "Welche Aktion?", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Welche Aktion?": {
+      "main": [
+        [{ "node": "Opt-Out Speichern", "type": "main", "index": 0 }],
+        [{ "node": "TG: Heisser Lead!", "type": "main", "index": 0 }],
+        [{ "node": "TG: Nachricht Weiterleiten", "type": "main", "index": 0 }]
+      ]
+    },
+    "Opt-Out Speichern": {
+      "main": [[{ "node": "TG: Opt-Out Bestaetigt", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [{ "name": "whatsapp-outreach" }]
+}

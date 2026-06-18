@@ -10,6 +10,7 @@
         200,
         400
       ],
+      "disabled": true,
       "parameters": {
         "rule": {
           "interval": [
@@ -349,6 +350,7 @@
       "name": "Run Daily 10am Follow-up",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
+      "disabled": true,
       "position": [
         180,
         1200
