@@ -55,7 +55,7 @@
       "typeVersion": 2,
       "position": [420, 460],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $input.first().json.body || $input.first().json;\n\n// Extract message from Meta webhook payload\nlet from = '';\nlet text = '';\nlet senderName = '';\n\ntry {\n  const entry = (body.entry || [])[0] || {};\n  const change = (entry.changes || [])[0] || {};\n  const value = change.value || {};\n  const msg = (value.messages || [])[0] || {};\n  const contact = (value.contacts || [])[0] || {};\n\n  from = msg.from || ''; // e.g. '19125550147'\n  text = (msg.text || {}).text || '';\n  senderName = (contact.profile || {}).name || from;\n} catch(e) {\n  return [{ json: { skip: true } }];\n}\n\nif (!from || !text) return [{ json: { skip: true } }];\n\n// Store last sender for /r reply feature\nstaticData.lastWaSender = { phone: from, name: senderName, at: new Date().toISOString() };\n\nconst textLower = text.trim().toLowerCase();\nlet action = 'forward';\nif (textLower === 'yes' || textLower === 'ja' || textLower.includes('interested')) action = 'hot_lead';\nif (textLower === 'stop' || textLower === 'opt out' || textLower === 'unsubscribe') action = 'optout';\n\nreturn [{ json: { from, text, sender_name: senderName, action } }];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $input.first().json.body || $input.first().json;\n\nlet from = '';\nlet text = '';\nlet senderName = '';\n\ntry {\n  const entry = (body.entry || [])[0] || {};\n  const change = (entry.changes || [])[0] || {};\n  const value = change.value || {};\n\n  // 1) Delivery status update (failed = no WhatsApp / landline / unreachable)\n  const status = (value.statuses || [])[0];\n  if (status) {\n    if (status.status === 'failed') {\n      return [{ json: { from: status.recipient_id || '', sender_name: '', text: '', action: 'delivery_failed' } }];\n    }\n    return [{ json: { skip: true } }]; // sent/delivered/read - nothing to do\n  }\n\n  // 2) Inbound text message from a real person\n  const msg = (value.messages || [])[0] || {};\n  const contact = (value.contacts || [])[0] || {};\n  from = msg.from || ''; // e.g. '19125550147'\n  text = (msg.text || {}).text || '';\n  senderName = (contact.profile || {}).name || from;\n} catch(e) {\n  return [{ json: { skip: true } }];\n}\n\nif (!from || !text) return [{ json: { skip: true } }];\n\n// Store last sender for /r reply feature\nstaticData.lastWaSender = { phone: from, name: senderName, at: new Date().toISOString() };\n\nconst textLower = text.trim().toLowerCase();\nlet action = 'forward';\nif (textLower === 'yes' || textLower === 'ja' || textLower.includes('interested')) action = 'hot_lead';\nif (textLower === 'stop' || textLower === 'opt out' || textLower === 'unsubscribe') action = 'optout';\n\nreturn [{ json: { from, text, sender_name: senderName, action } }];"
       }
     },
     {
@@ -86,9 +86,64 @@
       "typeVersion": 3,
       "position": [860, 380],
       "parameters": {
-        "mode": "expression",
-        "output": "={{ $json.action }}",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  { "leftValue": "={{ $json.action }}", "rightValue": "optout", "operator": { "type": "string", "operation": "equals" } }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  { "leftValue": "={{ $json.action }}", "rightValue": "hot_lead", "operator": { "type": "string", "operation": "equals" } }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  { "leftValue": "={{ $json.action }}", "rightValue": "forward", "operator": { "type": "string", "operation": "equals" } }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  { "leftValue": "={{ $json.action }}", "rightValue": "delivery_failed", "operator": { "type": "string", "operation": "equals" } }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
         "options": {}
+      }
+    },
+    {
+      "id": "http-blacklist-failed",
+      "name": "Blacklist: Kein WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1080, 640],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/wa-optout",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ phone: $json.from }) }}",
+        "options": { "timeout": 5000 }
       }
     },
     {
@@ -109,11 +164,30 @@
       }
     },
     {
+      "id": "http-leadinfo",
+      "name": "Lead Info Abrufen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1080, 400],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:5678/webhook/get-wa-lead",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "phone", "value": "={{ $json.from }}" }
+          ]
+        },
+        "options": { "timeout": 5000 }
+      }
+    },
+    {
       "id": "tg-hot-lead",
       "name": "TG: Heisser Lead!",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1080, 400],
+      "position": [1300, 400],
       "onError": "continueRegularOutput",
       "parameters": {
         "method": "GET",
@@ -124,7 +198,7 @@
             { "name": "chat_id", "value": "5381600986" },
             {
               "name": "text",
-              "value": "={{ '🔥 HEISSER LEAD!\\n\\nName: ' + $json.sender_name + '\\nNummer: +' + $json.from + '\\n\\nHat YES geantwortet! Website bauen und zurueckschreiben:\\n/r ' + $json.from + ' Hallo! Ich freue mich ueber dein Interesse...' }}"
+              "value": "={{ (() => {\n  const lead = $json || {};\n  const p = $('Parse WhatsApp Message').first().json;\n  let t = '🔥 HEISSER LEAD! Hat YES geantwortet.\\n\\n';\n  t += (lead.business_name || p.sender_name || 'Unbekannt') + '\\n';\n  if (lead.industry || lead.city) t += (lead.industry || '') + ' | ' + (lead.city || '') + '\\n';\n  if (lead.rating) t += lead.rating + ' Sterne (' + (lead.reviews_count || 0) + ' Reviews)\\n';\n  if (lead.address) t += lead.address + '\\n';\n  t += 'Tel: +' + p.from + '\\n';\n  if (lead.maps_url) t += '\\nMaps (vor dem Gespraech anschauen):\\n' + lead.maps_url + '\\n';\n  t += '\\nAntworten mit:\\n/r ' + p.from + ' <deine Nachricht>';\n  return t;\n})() }}"
             }
           ]
         },
@@ -200,9 +274,13 @@
     "Welche Aktion?": {
       "main": [
         [{ "node": "Opt-Out Speichern", "type": "main", "index": 0 }],
-        [{ "node": "TG: Heisser Lead!", "type": "main", "index": 0 }],
-        [{ "node": "TG: Nachricht Weiterleiten", "type": "main", "index": 0 }]
+        [{ "node": "Lead Info Abrufen", "type": "main", "index": 0 }],
+        [{ "node": "TG: Nachricht Weiterleiten", "type": "main", "index": 0 }],
+        [{ "node": "Blacklist: Kein WhatsApp", "type": "main", "index": 0 }]
       ]
+    },
+    "Lead Info Abrufen": {
+      "main": [[{ "node": "TG: Heisser Lead!", "type": "main", "index": 0 }]]
     },
     "Opt-Out Speichern": {
       "main": [[{ "node": "TG: Opt-Out Bestaetigt", "type": "main", "index": 0 }]]

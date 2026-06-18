@@ -114,7 +114,7 @@
       "typeVersion": 2,
       "position": [1300, 380],
       "parameters": {
-        "jsCode": "const l = $input.first().json;\n\n// WhatsApp API needs number in international format without +\n// Egyptian recipient US numbers: 1 + 10 digits\nconst wa_to = '1' + l.phone_digits;\n\n// business_name used as {{1}} template variable\nconst business_name = l.business_name || 'there';\n\nreturn [{ json: { ...l, wa_to, business_name } }];"
+        "jsCode": "const l = $input.first().json;\n\n// WhatsApp API needs number in international format without +\n// Egyptian recipient US numbers: 1 + 10 digits\nconst wa_to = '1' + l.phone_digits;\n\n// business_name used as {{1}} template variable\nconst business_name = l.business_name || 'there';\n\n// Google Maps link so Atakan can review the business before talking\nconst maps_url = l.place_id\n  ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(business_name) + '&query_place_id=' + l.place_id\n  : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(business_name + ' ' + (l.city||''));\n\nreturn [{ json: { ...l, wa_to, business_name, maps_url } }];"
       }
     },
     {
@@ -151,7 +151,7 @@
       "typeVersion": 2,
       "position": [1740, 380],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst l = $('Generate Preview & Message').first().json;\nconst today = new Date().toISOString().slice(0,10);\nconst digits = l.phone_digits;\n\nif (!staticData.whatsappMessaged) staticData.whatsappMessaged = {};\nstaticData.whatsappMessaged[digits] = { at: new Date().toISOString(), name: l.business_name };\n\nif (!staticData.waLeads) staticData.waLeads = [];\nstaticData.waLeads.push({\n  business_name: l.business_name,\n  phone: l.phone,\n  phone_digits: digits,\n  industry: l.industry,\n  city: l.city,\n  status: 'sent',\n  sent_at: new Date().toISOString()\n});\nif (staticData.waLeads.length > 500) staticData.waLeads = staticData.waLeads.slice(-500);\n\nif (!staticData.waDailyCosts) staticData.waDailyCosts = {};\nif (!staticData.waDailyCosts[today]) staticData.waDailyCosts[today] = {count: 0, cost: 0};\nstaticData.waDailyCosts[today].count++;\nstaticData.waDailyCosts[today].cost = parseFloat((staticData.waDailyCosts[today].count * 0.025).toFixed(4));\n\nreturn [{ json: { ...l, saved: true } }];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst l = $('Generate Preview & Message').first().json;\nconst resp = $input.first().json || {};\nconst today = new Date().toISOString().slice(0,10);\nconst digits = l.phone_digits;\n\n// WhatsApp accepted the send only if it returned a message id.\n// Failed (landline / no WhatsApp) returns an error -> not charged by Meta.\nconst accepted = !!(resp.messages && resp.messages[0] && resp.messages[0].id);\n\nif (!staticData.whatsappMessaged) staticData.whatsappMessaged = {};\n// Always mark so we never retry the same number\nstaticData.whatsappMessaged[digits] = { at: new Date().toISOString(), name: l.business_name, accepted };\n\nif (accepted) {\n  if (!staticData.waLeads) staticData.waLeads = [];\n  staticData.waLeads.push({\n    business_name: l.business_name,\n    phone: l.phone,\n    phone_digits: digits,\n    industry: l.industry,\n    city: l.city,\n    address: l.address || '',\n    rating: l.rating || 0,\n    reviews_count: l.reviews_count || 0,\n    place_id: l.place_id || '',\n    maps_url: l.maps_url || '',\n    status: 'sent',\n    sent_at: new Date().toISOString()\n  });\n  if (staticData.waLeads.length > 500) staticData.waLeads = staticData.waLeads.slice(-500);\n\n  if (!staticData.waDailyCosts) staticData.waDailyCosts = {};\n  if (!staticData.waDailyCosts[today]) staticData.waDailyCosts[today] = {count: 0, failed: 0, cost: 0};\n  staticData.waDailyCosts[today].count++;\n  staticData.waDailyCosts[today].cost = parseFloat((staticData.waDailyCosts[today].count * 0.025).toFixed(4));\n} else {\n  if (!staticData.waDailyCosts) staticData.waDailyCosts = {};\n  if (!staticData.waDailyCosts[today]) staticData.waDailyCosts[today] = {count: 0, failed: 0, cost: 0};\n  staticData.waDailyCosts[today].failed = (staticData.waDailyCosts[today].failed || 0) + 1;\n}\n\nreturn [{ json: { ...l, saved: true, accepted } }];"
       }
     },
     {
@@ -161,7 +161,7 @@
       "typeVersion": 2,
       "position": [1960, 380],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst today = new Date().toISOString().slice(0,10);\nconst dayData = (staticData.waDailyCosts || {})[today] || {count:0, cost:0};\nconst sent = $input.all();\n\nlet text = 'WHATSAPP OUTREACH ABGESCHLOSSEN\\n\\n';\ntext += 'Heute gesendet: ' + dayData.count + ' Nachrichten\\n';\ntext += 'Kosten heute: $' + dayData.cost.toFixed(4) + '\\n\\n';\n\nif (sent.length > 0) {\n  text += 'Diese Runde:\\n';\n  sent.forEach(s => {\n    const l = s.json;\n    text += '  - ' + (l.business_name||'?') + ' (' + (l.city||'') + ')\\n';\n  });\n}\n\nreturn [{ json: { report_text: text } }];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst today = new Date().toISOString().slice(0,10);\nconst dayData = (staticData.waDailyCosts || {})[today] || {count:0, failed:0, cost:0};\nconst sent = $input.all();\n\nlet text = 'WHATSAPP OUTREACH ABGESCHLOSSEN\\n\\n';\ntext += 'Zugestellt heute: ' + dayData.count + ' Nachrichten\\n';\nif (dayData.failed) text += 'Kein WhatsApp (uebersprungen): ' + dayData.failed + '\\n';\ntext += 'Kosten heute: $' + dayData.cost.toFixed(4) + '\\n\\n';\n\nconst delivered = sent.filter(s => s.json.accepted);\nif (delivered.length > 0) {\n  text += 'Diese Runde zugestellt:\\n';\n  delivered.forEach(s => {\n    const l = s.json;\n    text += '  - ' + (l.business_name||'?') + ' (' + (l.city||'') + ')\\n';\n  });\n}\n\nreturn [{ json: { report_text: text } }];"
       }
     },
     {
@@ -182,9 +182,61 @@
         },
         "options": {}
       }
+    },
+    {
+      "id": "wh-getleads",
+      "name": "Get WA Leads Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 760],
+      "webhookId": "get-wa-leads",
+      "parameters": {
+        "path": "get-wa-leads",
+        "responseMode": "lastNode",
+        "httpMethod": "GET"
+      }
+    },
+    {
+      "id": "code-getleads",
+      "name": "Build Leads List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 760],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst leads = (staticData.waLeads || []).slice(-15).reverse();\nif (leads.length === 0) {\n  return [{ json: { leads_text: 'Noch keine WhatsApp-Leads. Starte mit /start.' } }];\n}\nlet text = 'DEINE LETZTEN ' + leads.length + ' LEADS (zum Vorbereiten):\\n\\n';\nleads.forEach((l, i) => {\n  text += (i+1) + '. ' + (l.business_name || '?') + '\\n';\n  text += '   ' + (l.industry || '-') + ' | ' + (l.city || '-') + '\\n';\n  if (l.rating) text += '   ' + l.rating + ' Sterne (' + (l.reviews_count || 0) + ' Reviews)\\n';\n  if (l.address) text += '   ' + l.address + '\\n';\n  text += '   Tel: ' + (l.phone || '-') + '\\n';\n  if (l.maps_url) text += '   Maps: ' + l.maps_url + '\\n';\n  text += '   Antworten: /r ' + (l.phone_digits ? '1' + l.phone_digits : '') + ' <text>\\n\\n';\n});\nreturn [{ json: { leads_text: text } }];"
+      }
+    },
+    {
+      "id": "wh-getlead",
+      "name": "Get Single Lead Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 900],
+      "webhookId": "get-wa-lead",
+      "parameters": {
+        "path": "get-wa-lead",
+        "responseMode": "lastNode",
+        "httpMethod": "GET"
+      }
+    },
+    {
+      "id": "code-getlead",
+      "name": "Lookup Lead By Phone",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 900],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst q = $input.first().json.query || {};\nlet digits = String(q.phone || '').replace(/[^0-9]/g, '');\nif (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1);\nconst lead = (staticData.waLeads || []).find(l => l.phone_digits === digits) || {};\nreturn [{ json: {\n  found: !!lead.business_name,\n  business_name: lead.business_name || '',\n  industry: lead.industry || '',\n  city: lead.city || '',\n  address: lead.address || '',\n  rating: lead.rating || '',\n  reviews_count: lead.reviews_count || 0,\n  maps_url: lead.maps_url || '',\n  phone: lead.phone || ''\n} }];"
+      }
     }
   ],
   "connections": {
+    "Get WA Leads Webhook": {
+      "main": [[{ "node": "Build Leads List", "type": "main", "index": 0 }]]
+    },
+    "Get Single Lead Webhook": {
+      "main": [[{ "node": "Lookup Lead By Phone", "type": "main", "index": 0 }]]
+    },
     "Run Daily 10am (Mon-Fri)": {
       "main": [[{ "node": "Set Config & Target", "type": "main", "index": 0 }]]
     },

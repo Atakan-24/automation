@@ -660,7 +660,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "http://localhost:5678/webhook/get-leads",
+        "url": "http://localhost:5678/webhook/get-wa-leads",
         "options": {}
       }
     },
