@@ -71,18 +71,20 @@
 
 ---
 
-## SCHRITT 5 — Nachrichten-Vorlage (Template) erstellen
+## SCHRITT 5 — ZWEI Nachrichten-Vorlagen (Templates) erstellen — Englisch + Deutsch
 
-Kalt-Nachrichten müssen von Meta freigegebene Vorlagen sein.
+> Das System läuft für **USA (englisch)** UND **Deutschland (deutsch)**.
+> Darum brauchen wir **zwei** freigegebene Vorlagen. Beide gleich anlegen, nur Sprache + Text unterscheiden sich.
 
 1. Gehe zu **https://business.facebook.com/wa/manage/message-templates**
    (oder in der App: WhatsApp → „Vorlagen verwalten").
-2. **„Vorlage erstellen"** klicken.
-3. Kategorie: **Marketing**.
-4. Name vergeben (nur Kleinbuchstaben + Unterstriche), z.B.: **`team_gold_intro`**
-   → **Das ist WERT 3 (Template-Name).**
-5. Sprache: **English (US)**.
-6. **Inhalt (Body)** — genau so eintragen (das `{{1}}` ist der Firmenname, wird automatisch eingesetzt):
+
+### 5a) Englische Vorlage (für USA)
+2. **„Vorlage erstellen"** → Kategorie **Marketing**.
+3. Name (nur Kleinbuchstaben + Unterstriche): **`team_gold_intro_en`**
+   → **Das ist WERT 3a (Template-Name EN).**
+4. Sprache: **English (US)**.
+5. **Inhalt (Body)** — genau so (`{{1}}` = Firmenname, wird automatisch eingesetzt):
 
    ```
    Hi {{1}}! This is Atakan from Team Gold. I noticed your business doesn't
@@ -90,10 +92,25 @@ Kalt-Nachrichten müssen von Meta freigegebene Vorlagen sein.
    Want a free preview made just for you? Just reply YES. Reply STOP to opt out.
    ```
 
-7. Bei „Beispiel" für `{{1}}` ein Beispiel eingeben, z.B. `Joe's Electric`.
-8. **Absenden zur Prüfung.**
+6. Bei „Beispiel" für `{{1}}` z.B. `Joe's Electric` eingeben → **Absenden zur Prüfung.**
 
-⏳ Freigabe meist **wenige Minuten bis 24 Stunden**. Status muss **„Aktiv/Approved"** sein.
+### 5b) Deutsche Vorlage (für Deutschland)
+7. Nochmal **„Vorlage erstellen"** → Kategorie **Marketing**.
+8. Name: **`team_gold_intro_de`**
+   → **Das ist WERT 3b (Template-Name DE).**
+9. Sprache: **German / Deutsch**.
+10. **Inhalt (Body)** — genau so (`{{1}}` = Firmenname):
+
+    ```
+    Hallo {{1}}! Ich bin Atakan von Team Gold. Mir ist aufgefallen, dass Ihr
+    Unternehmen noch keine Website hat — ich baue professionelle Seiten für
+    lokale Firmen. Möchten Sie eine kostenlose Vorschau? Antworten Sie mit JA.
+    Mit STOP abmelden.
+    ```
+
+11. Bei „Beispiel" für `{{1}}` z.B. `Müller Elektrotechnik` eingeben → **Absenden zur Prüfung.**
+
+⏳ Freigabe meist **wenige Minuten bis 24 Stunden**. Beide müssen **„Aktiv/Approved"** sein.
 
 ---
 
@@ -144,7 +161,33 @@ Damit Kunden-Antworten im Telegram-Bot ankommen.
 
 ---
 
-## SCHRITT 8 — Frischen n8n API-Key holen
+## SCHRITT 8 — Google Sheet für das Cold-Calling-Team anlegen
+
+Das System trägt **jeden angeschriebenen Lead automatisch in ein Google Sheet** ein.
+Das Team arbeitet die Liste ab (A-Leads zuerst), setzt Status und macht Notizen.
+
+1. Gehe zu **https://sheets.google.com** → **leeres Tabellenblatt** erstellen.
+2. Benenne es z.B. **„Team Gold Leads"**.
+3. Das erste Tabellenblatt unten **exakt** `Leads` nennen (Doppelklick auf „Tabelle1" → umbenennen).
+4. In **Zeile 1** diese Spaltentitel eintragen (genau so, eine pro Spalte A–N):
+
+   ```
+   Datum | Gesendet | Markt | Firma | Branche | Stadt | Bewertung | Reviews | Adresse | Telefon | Maps | Note | Status | Notizen
+   ```
+
+5. **Sheet-ID** aus der URL kopieren — der lange Teil zwischen `/d/` und `/edit`:
+   ```
+   https://docs.google.com/spreadsheets/d/  DAS_IST_DIE_ID  /edit
+   ```
+   → **Das ist WERT 6.**
+6. Oben rechts **„Freigeben"** → die E-Mail des Cold-Calling-Teams mit **Bearbeiter**-Recht hinzufügen.
+
+> Hinweis: Die Google-Verbindung (OAuth) richtet Atakan/Claude direkt in n8n ein
+> (einmaliges Einloggen mit dem Google-Konto). Du musst nur die Sheet-ID schicken.
+
+---
+
+## SCHRITT 9 — Frischen n8n API-Key holen
 
 Damit ich (Claude) die Werte ins System eintragen kann.
 
@@ -154,7 +197,7 @@ Damit ich (Claude) die Werte ins System eintragen kann.
 4. **„Create an API Key"** klicken.
 5. Key kopieren.
 
-> 📌 Langer Text (beginnt mit `eyJ...`). **Das ist WERT 5.**
+> 📌 Langer Text (beginnt mit `eyJ...`). **Das ist WERT 7.**
 
 ---
 
@@ -163,11 +206,13 @@ Damit ich (Claude) die Werte ins System eintragen kann.
 Kopiere diese Liste und fülle sie aus:
 
 ```
-1. WHATSAPP_ACCESS_TOKEN   = EAA...          (aus Schritt 6)
-2. WHATSAPP_PHONE_NUMBER_ID = 1234567890...  (aus Schritt 4)
-3. WHATSAPP_TEMPLATE_NAME  = team_gold_intro (aus Schritt 5)
-4. WHATSAPP_VERIFY_TOKEN   = teamgold2026verify (aus Schritt 7)
-5. N8N_API_KEY             = eyJ...          (aus Schritt 8)
+1.  WHATSAPP_ACCESS_TOKEN    = EAA...              (aus Schritt 6)
+2.  WHATSAPP_PHONE_NUMBER_ID = 1234567890...       (aus Schritt 4)
+3a. WHATSAPP_TEMPLATE_NAME_EN = team_gold_intro_en (aus Schritt 5a)
+3b. WHATSAPP_TEMPLATE_NAME_DE = team_gold_intro_de (aus Schritt 5b)
+4.  WHATSAPP_VERIFY_TOKEN    = teamgold2026verify  (aus Schritt 7)
+6.  GOOGLE_SHEET_ID          = 1AbC...             (aus Schritt 8)
+7.  N8N_API_KEY              = eyJ...              (aus Schritt 9)
 ```
 
 **Zusätzlich melden, falls ein Problem auftrat bei:**
@@ -178,10 +223,11 @@ Kopiere diese Liste und fülle sie aus:
 ---
 
 ## Was danach passiert (macht Claude/Atakan)
-1. Die 5 Werte werden in die n8n-Workflows eingetragen.
-2. Test-Nachricht an die eigene Nummer → kommt sie an?
-3. Test-Antwort „YES" → kommt der Telegram-Alarm?
-4. Kleiner Live-Lauf (25 Nachrichten) → dann hochfahren auf 100/Tag.
+1. Die Werte werden in die n8n-Workflows eingetragen (EN + DE Template, Sheet, Google-Login).
+2. Test-Nachricht an eine eigene Nummer → kommt sie an (USA = englisch, DE = deutsch)?
+3. Test-Antwort „YES" / „JA" → kommt der Telegram-Alarm?
+4. Kleiner Live-Lauf (je 25 USA + 25 DE) → dann hochfahren auf 50+50 = 100/Tag.
+5. Jeder gesendete Lead landet automatisch im Google Sheet (mit Sende-Zeit für den Anruf).
 
 **Steuerung läuft komplett über den bestehenden Telegram-Bot:**
 - `/start` → Outreach jetzt starten

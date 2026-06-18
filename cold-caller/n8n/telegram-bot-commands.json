@@ -127,7 +127,7 @@
             },
             {
               "name": "text",
-              "value": "BEFEHLE:\nstart - WhatsApp-Outreach jetzt starten (sucht Leads + schickt Nachrichten)\nbericht - Tagesbericht\nstatus - System Status (was laeuft, Kosten heute)\nleads - Letzte Leads\n\nWHATSAPP ANTWORTEN:\n/r <Nummer> <Text> - Auf WhatsApp antworten\nBeispiel: /r 19125550147 Hallo! Danke fuer dein Interesse...\n\nSTEUERUNG:\n/stop - Outreach pausieren\n/resume - Outreach wieder starten\n\nAutomatisch: Outreach Mo-Fr 10am EDT."
+              "value": "BEFEHLE (USA + Deutschland):\nstart - WhatsApp-Outreach jetzt starten (USA + DE, sucht Leads + schickt Nachrichten)\nbericht - Tagesbericht (US und DE getrennt)\nstatus - System Status (was laeuft, Kosten heute)\nleads - Beste Leads (Note A zuerst, mit Markt + Sende-Zeit + Maps)\n\nWHATSAPP ANTWORTEN:\n/r <Nummer> <Text> - Auf WhatsApp antworten\nBeispiel US: /r 19125550147 Hi! Thanks for your interest...\nBeispiel DE: /r 4915123456789 Hallo! Danke fuer Ihr Interesse...\n\nSTEUERUNG:\n/stop - Outreach pausieren\n/resume - Outreach wieder starten\n\nAutomatisch: Outreach Mo-Fr. USA = englisches Template, DE = deutsches Template."
             }
           ]
         },

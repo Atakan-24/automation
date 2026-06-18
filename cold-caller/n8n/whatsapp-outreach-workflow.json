@@ -48,7 +48,7 @@
       "typeVersion": 2,
       "position": [420, 620],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $input.first().json.body || $input.first().json;\nconst phone = String(body.phone || '').replace(/[^0-9]/g, '');\nconst digits = phone.length === 11 && phone.startsWith('1') ? phone.slice(1) : phone;\nif (digits.length === 10) {\n  if (!staticData.whatsappMessaged) staticData.whatsappMessaged = {};\n  staticData.whatsappMessaged[digits] = { opted_out: true, at: new Date().toISOString() };\n}\nreturn [{ json: { ok: true, phone: digits } }];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $input.first().json.body || $input.first().json;\nconst raw = String(body.phone || '').replace(/[^0-9]/g, '');\nif (!raw) return [{ json: { ok: false } }];\n\nif (!staticData.optedOut) staticData.optedOut = {};\nif (!staticData.whatsappMessaged) staticData.whatsappMessaged = {};\n\n// Markt-unabhaengig blockieren: mehrere normalisierte Formen merken.\nconst forms = new Set();\nforms.add(raw);\nif (raw.length === 11 && raw.startsWith('1')) forms.add(raw.slice(1)); // US national\nif (raw.startsWith('49')) forms.add(raw.slice(2));                      // DE national\nforms.add(raw.replace(/^0+/, ''));\nconst at = new Date().toISOString();\nfor (const f of forms) {\n  if (!f) continue;\n  staticData.optedOut[f] = { opted_out: true, at };\n}\n// Auch unter Markt-Keys sperren, damit Dedup sicher greift\nconst usNat = (raw.length === 11 && raw.startsWith('1')) ? raw.slice(1) : raw;\nconst deNat = raw.startsWith('49') ? raw.slice(2).replace(/^0+/, '') : raw.replace(/^0+/, '');\nstaticData.whatsappMessaged['US:' + usNat] = { opted_out: true, at };\nstaticData.whatsappMessaged['DE:' + deNat] = { opted_out: true, at };\n\nreturn [{ json: { ok: true, phone: raw } }];"
       }
     },
     {
@@ -58,7 +58,7 @@
       "typeVersion": 2,
       "position": [420, 380],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst cfg = staticData.config || {};\n\nconst CITIES = cfg.cities || [\n  'Savannah GA','Atlanta GA','Charlotte NC','Nashville TN','Memphis TN',\n  'Jacksonville FL','Orlando FL','Tampa FL','Miami FL','Houston TX',\n  'Laredo TX','Lubbock TX','Corpus Christi TX','Little Rock AR','Wichita KS',\n  'Baton Rouge LA','Huntsville AL','Mobile AL','Fayetteville NC','Greenville SC'\n];\nconst INDUSTRIES = cfg.industries || [\n  'electrician','plumber','HVAC contractor','roofer','landscaper',\n  'painter','handyman','cleaning service','pest control','concrete contractor',\n  'fence contractor','tile installer','tree service','pool service','garage door repair'\n];\nconst maxMsg = cfg.max_whatsapp || 25;\n\nconst combos = [];\nconst used = new Set();\nwhile (combos.length < 8 && combos.length < CITIES.length * INDUSTRIES.length) {\n  const c = CITIES[Math.floor(Math.random() * CITIES.length)];\n  const i = INDUSTRIES[Math.floor(Math.random() * INDUSTRIES.length)];\n  const key = c + '|' + i;\n  if (!used.has(key)) { used.add(key); combos.push({city: c, industry: i}); }\n}\n\nreturn combos.map(x => ({ json: { ...x, max_messages: maxMsg } }));"
+        "jsCode": "// DUAL-MARKT: USA (EN) + Deutschland (DE) gleichzeitig.\n// Jeder Markt hat eigene Staedte, Branchen, Telefon-Praefix, Template und Sprache.\nconst staticData = $getWorkflowStaticData('global');\nconst cfg = staticData.config || {};\n\nconst MARKETS = {\n  US: {\n    market: 'US',\n    regionCode: 'US',\n    template: 'WHATSAPP_TEMPLATE_NAME_EN',\n    lang: 'en',\n    phonePrefix: '1',\n    dailyCap: cfg.us_cap || 25,\n    cities: cfg.us_cities || [\n      'Savannah GA','Atlanta GA','Charlotte NC','Nashville TN','Memphis TN',\n      'Jacksonville FL','Orlando FL','Tampa FL','Miami FL','Houston TX',\n      'Laredo TX','Lubbock TX','Corpus Christi TX','Little Rock AR','Wichita KS',\n      'Baton Rouge LA','Huntsville AL','Mobile AL','Fayetteville NC','Greenville SC'\n    ],\n    industries: cfg.us_industries || [\n      'electrician','plumber','HVAC contractor','roofer','landscaper',\n      'painter','handyman','cleaning service','pest control','concrete contractor',\n      'fence contractor','tile installer','tree service','pool service','garage door repair'\n    ]\n  },\n  DE: {\n    market: 'DE',\n    regionCode: 'DE',\n    template: 'WHATSAPP_TEMPLATE_NAME_DE',\n    lang: 'de',\n    phonePrefix: '49',\n    dailyCap: cfg.de_cap || 25,\n    cities: cfg.de_cities || [\n      'Hamburg','Muenchen','Koeln','Berlin','Frankfurt','Stuttgart',\n      'Duesseldorf','Dortmund','Essen','Bremen','Hannover','Nuernberg',\n      'Duisburg','Bochum','Wuppertal','Bielefeld','Bonn','Muenster',\n      'Karlsruhe','Mannheim'\n    ],\n    industries: cfg.de_industries || [\n      'Elektriker','Klempner','Sanitaer Heizung','Dachdecker','Maler',\n      'Gartenbau','Reinigungsfirma','Schreiner','Fliesenleger','Hausmeisterservice',\n      'Schluesseldienst','Umzugsfirma','Trockenbau','Bodenleger','Zaunbau'\n    ]\n  }\n};\n\n// Welche Maerkte sind aktiv? Default: beide.\nconst activeMarkets = cfg.markets || ['US','DE'];\n\nconst combos = [];\nfor (const mk of activeMarkets) {\n  const M = MARKETS[mk];\n  if (!M) continue;\n  const used = new Set();\n  let tries = 0;\n  // 4 Kombos pro Markt -> mit je 20 Treffern reicht das fuer den Tages-Cap\n  while (combos.filter(c => c.market === mk).length < 4 && tries < 50) {\n    tries++;\n    const c = M.cities[Math.floor(Math.random() * M.cities.length)];\n    const i = M.industries[Math.floor(Math.random() * M.industries.length)];\n    const key = mk + '|' + c + '|' + i;\n    if (used.has(key)) continue;\n    used.add(key);\n    combos.push({\n      market: M.market, regionCode: M.regionCode, template: M.template,\n      lang: M.lang, phonePrefix: M.phonePrefix, dailyCap: M.dailyCap,\n      city: c, industry: i\n    });\n  }\n}\n\nreturn combos.map(x => ({ json: x }));"
       }
     },
     {
@@ -82,7 +82,7 @@
         "body": {
           "textQuery": "={{ $json.industry + ' in ' + $json.city }}",
           "maxResultCount": 20,
-          "regionCode": "US"
+          "regionCode": "={{ $json.regionCode || 'US' }}"
         },
         "options": {}
       }
@@ -94,7 +94,7 @@
       "typeVersion": 2,
       "position": [860, 380],
       "parameters": {
-        "jsCode": "// Lead-Scoring: bewertet jeden Lead 0-100 und vergibt Note A/B/C.\n// Ziel: der erfahrene Cold-Caller bekommt die besten Leads zuerst.\nfunction scoreLead(p) {\n  const rating = p.rating || 0;\n  const reviews = p.userRatingCount || 0;\n  let s = 20; // Basis: kein Website + Telefon + aktiv\n\n  // Reputation: Firmen die auf ihren Ruf achten investieren eher in eine Website\n  if (rating >= 4.5) s += 30;\n  else if (rating >= 4.0) s += 25;\n  else if (rating >= 3.5) s += 12;\n  else if (rating > 0) s += 5;\n  else s += 10; // keine Bewertung = neue Firma, braucht oft alles inkl. Website\n\n  // Bewertungs-Anzahl: Sweet-Spot = etabliert, inhabergefuehrt, erreichbar, zahlungsfaehig\n  if (reviews >= 10 && reviews <= 150) s += 35;        // ideal fuer Cold Call\n  else if (reviews > 150 && reviews <= 400) s += 22;   // groesser, evtl. Gatekeeper\n  else if (reviews >= 5 && reviews < 10) s += 18;      // jung aber real\n  else if (reviews > 400) s += 10;                     // zu gross, schwer erreichbar\n  else s += 6;                                         // <5 sehr neu/unbewiesen\n\n  return Math.min(s, 100);\n}\n\nconst cfgItems = $('Set Config & Target').all();\nconst all = $input.all();\nconst scored = [];\n\nfor (let i = 0; i < all.length; i++) {\n  const places = all[i].json.places || [];\n  const cfg = (cfgItems[i] || cfgItems[0] || { json: {} }).json;\n  for (const p of places) {\n    if (p.websiteUri) continue;\n    const phone = p.nationalPhoneNumber || '';\n    if (!phone) continue;\n    if (p.businessStatus && p.businessStatus !== 'OPERATIONAL') continue; // keine geschlossenen\n    const score = scoreLead(p);\n    const grade = score >= 75 ? 'A' : (score >= 55 ? 'B' : 'C');\n    scored.push({ json: {\n      business_name: p.displayName?.text || '',\n      phone,\n      industry: cfg.industry || '',\n      city: cfg.city || '',\n      rating: p.rating || 0,\n      reviews_count: p.userRatingCount || 0,\n      place_id: p.id || '',\n      address: p.formattedAddress || '',\n      score,\n      grade\n    }});\n  }\n}\n\n// Beste Leads zuerst\nscored.sort((a, b) => b.json.score - a.json.score);\nreturn scored;"
+        "jsCode": "// Lead-Scoring: bewertet jeden Lead 0-100 und vergibt Note A/B/C.\n// Ziel: der erfahrene Cold-Caller bekommt die besten Leads zuerst.\nfunction scoreLead(p) {\n  const rating = p.rating || 0;\n  const reviews = p.userRatingCount || 0;\n  let s = 20; // Basis: kein Website + Telefon + aktiv\n\n  // Reputation: Firmen die auf ihren Ruf achten investieren eher in eine Website\n  if (rating >= 4.5) s += 30;\n  else if (rating >= 4.0) s += 25;\n  else if (rating >= 3.5) s += 12;\n  else if (rating > 0) s += 5;\n  else s += 10; // keine Bewertung = neue Firma, braucht oft alles inkl. Website\n\n  // Bewertungs-Anzahl: Sweet-Spot = etabliert, inhabergefuehrt, erreichbar, zahlungsfaehig\n  if (reviews >= 10 && reviews <= 150) s += 35;        // ideal fuer Cold Call\n  else if (reviews > 150 && reviews <= 400) s += 22;   // groesser, evtl. Gatekeeper\n  else if (reviews >= 5 && reviews < 10) s += 18;      // jung aber real\n  else if (reviews > 400) s += 10;                     // zu gross, schwer erreichbar\n  else s += 6;                                         // <5 sehr neu/unbewiesen\n\n  return Math.min(s, 100);\n}\n\nconst cfgItems = $('Set Config & Target').all();\nconst all = $input.all();\nconst scored = [];\n\nfor (let i = 0; i < all.length; i++) {\n  const places = all[i].json.places || [];\n  const cfg = (cfgItems[i] || cfgItems[0] || { json: {} }).json;\n  for (const p of places) {\n    if (p.websiteUri) continue;\n    const phone = p.nationalPhoneNumber || '';\n    if (!phone) continue;\n    if (p.businessStatus && p.businessStatus !== 'OPERATIONAL') continue; // keine geschlossenen\n    const score = scoreLead(p);\n    const grade = score >= 75 ? 'A' : (score >= 55 ? 'B' : 'C');\n    scored.push({ json: {\n      business_name: p.displayName?.text || '',\n      phone,\n      industry: cfg.industry || '',\n      city: cfg.city || '',\n      market: cfg.market || 'US',\n      template: cfg.template || 'WHATSAPP_TEMPLATE_NAME_EN',\n      lang: cfg.lang || 'en',\n      phonePrefix: cfg.phonePrefix || '1',\n      dailyCap: cfg.dailyCap || 25,\n      rating: p.rating || 0,\n      reviews_count: p.userRatingCount || 0,\n      place_id: p.id || '',\n      address: p.formattedAddress || '',\n      score,\n      grade\n    }});\n  }\n}\n\n// Beste Leads zuerst\nscored.sort((a, b) => b.json.score - a.json.score);\nreturn scored;"
       }
     },
     {
@@ -104,7 +104,7 @@
       "typeVersion": 2,
       "position": [1080, 380],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.whatsappMessaged) staticData.whatsappMessaged = {};\n\nconst out = [];\nconst maxMsg = 25;\n\nfor (const item of $input.all()) {\n  const l = item.json;\n  let digits = String(l.phone || '').replace(/[^0-9]/g, '');\n  if (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1);\n  if (digits.length !== 10) continue;\n  if (staticData.whatsappMessaged[digits]) continue;\n  if (out.length >= maxMsg) break;\n  out.push({ json: { ...l, phone_digits: digits } });\n}\nreturn out;"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.whatsappMessaged) staticData.whatsappMessaged = {};\n\n// Telefon je nach Markt normalisieren -> eindeutiger Dedup-Key 'MARKT:ziffern'\nfunction normalize(market, raw) {\n  let d = String(raw || '').replace(/[^0-9]/g, '');\n  if (market === 'DE') {\n    // Deutschland: fuehrende 00/49 weg, dann fuehrende 0 weg (nationale Form)\n    if (d.startsWith('0049')) d = d.slice(4);\n    else if (d.startsWith('49') && d.length > 9) d = d.slice(2);\n    d = d.replace(/^0+/, '');\n    return d.length >= 6 && d.length <= 12 ? d : null;\n  }\n  // USA: auf 10 Stellen normalisieren\n  if (d.length === 11 && d.startsWith('1')) d = d.slice(1);\n  return d.length === 10 ? d : null;\n}\n\n// Pro-Markt-Zaehler, damit jeder Markt seinen eigenen Tages-Cap bekommt\nconst sentPerMarket = {};\nconst out = [];\n\nfor (const item of $input.all()) {\n  const l = item.json;\n  const market = l.market || 'US';\n  const digits = normalize(market, l.phone);\n  if (!digits) continue;\n  const key = market + ':' + digits;\n  if (staticData.whatsappMessaged[key]) continue;\n  // Markt-unabhaengige Opt-Out-Sperre (STOP / kein WhatsApp)\n  if (staticData.optedOut && (staticData.optedOut[digits] || staticData.optedOut[l.phonePrefix + digits])) continue;\n  const cap = l.dailyCap || 25;\n  sentPerMarket[market] = sentPerMarket[market] || 0;\n  if (sentPerMarket[market] >= cap) continue;\n  sentPerMarket[market]++;\n  out.push({ json: { ...l, phone_digits: digits, dedup_key: key } });\n}\nreturn out;"
       }
     },
     {
@@ -114,7 +114,7 @@
       "typeVersion": 2,
       "position": [1300, 380],
       "parameters": {
-        "jsCode": "const l = $input.first().json;\n\n// WhatsApp API needs number in international format without +\n// Egyptian recipient US numbers: 1 + 10 digits\nconst wa_to = '1' + l.phone_digits;\n\n// business_name used as {{1}} template variable\nconst business_name = l.business_name || 'there';\n\n// Google Maps link so Atakan can review the business before talking\nconst maps_url = l.place_id\n  ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(business_name) + '&query_place_id=' + l.place_id\n  : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(business_name + ' ' + (l.city||''));\n\nreturn [{ json: { ...l, wa_to, business_name, maps_url } }];"
+        "jsCode": "const l = $input.first().json;\n\n// WhatsApp braucht internationale Nummer ohne +.\n// US: 1 + 10 Ziffern. DE: 49 + nationale Nummer (ohne fuehrende 0).\nconst prefix = l.phonePrefix || '1';\nconst wa_to = prefix + l.phone_digits;\n\n// business_name wird als {{1}} Template-Variable verwendet\nconst business_name = l.business_name || (l.lang === 'de' ? 'Team' : 'there');\n\n// Google Maps Link, damit Atakan/Caller die Firma vor dem Gespraech anschaut\nconst maps_url = l.place_id\n  ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(business_name) + '&query_place_id=' + l.place_id\n  : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(business_name + ' ' + (l.city||''));\n\nreturn [{ json: { ...l, wa_to, business_name, maps_url } }];"
       }
     },
     {
@@ -136,7 +136,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({\n  messaging_product: 'whatsapp',\n  to: $json.wa_to,\n  type: 'template',\n  template: {\n    name: 'WHATSAPP_TEMPLATE_NAME',\n    language: { code: 'en' },\n    components: [{\n      type: 'body',\n      parameters: [{ type: 'text', text: $json.business_name }]\n    }]\n  }\n}) }}",
+        "body": "={{ JSON.stringify({\n  messaging_product: 'whatsapp',\n  to: $json.wa_to,\n  type: 'template',\n  template: {\n    name: $json.template,\n    language: { code: $json.lang },\n    components: [{\n      type: 'body',\n      parameters: [{ type: 'text', text: $json.business_name }]\n    }]\n  }\n}) }}",
         "options": {
           "response": {
             "response": { "neverError": true }
@@ -151,7 +151,7 @@
       "typeVersion": 2,
       "position": [1740, 380],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst l = $('Generate Preview & Message').first().json;\nconst resp = $input.first().json || {};\nconst today = new Date().toISOString().slice(0,10);\nconst digits = l.phone_digits;\n\n// WhatsApp accepted the send only if it returned a message id.\n// Failed (landline / no WhatsApp) returns an error -> not charged by Meta.\nconst accepted = !!(resp.messages && resp.messages[0] && resp.messages[0].id);\n\nif (!staticData.whatsappMessaged) staticData.whatsappMessaged = {};\n// Always mark so we never retry the same number\nstaticData.whatsappMessaged[digits] = { at: new Date().toISOString(), name: l.business_name, accepted };\n\nif (accepted) {\n  if (!staticData.waLeads) staticData.waLeads = [];\n  staticData.waLeads.push({\n    business_name: l.business_name,\n    phone: l.phone,\n    phone_digits: digits,\n    industry: l.industry,\n    city: l.city,\n    address: l.address || '',\n    rating: l.rating || 0,\n    reviews_count: l.reviews_count || 0,\n    place_id: l.place_id || '',\n    maps_url: l.maps_url || '',\n    score: l.score || 0,\n    grade: l.grade || 'C',\n    status: 'sent',\n    sent_at: new Date().toISOString()\n  });\n  if (staticData.waLeads.length > 500) staticData.waLeads = staticData.waLeads.slice(-500);\n\n  if (!staticData.waDailyCosts) staticData.waDailyCosts = {};\n  if (!staticData.waDailyCosts[today]) staticData.waDailyCosts[today] = {count: 0, failed: 0, cost: 0};\n  staticData.waDailyCosts[today].count++;\n  staticData.waDailyCosts[today].cost = parseFloat((staticData.waDailyCosts[today].count * 0.025).toFixed(4));\n} else {\n  if (!staticData.waDailyCosts) staticData.waDailyCosts = {};\n  if (!staticData.waDailyCosts[today]) staticData.waDailyCosts[today] = {count: 0, failed: 0, cost: 0};\n  staticData.waDailyCosts[today].failed = (staticData.waDailyCosts[today].failed || 0) + 1;\n}\n\nreturn [{ json: { ...l, saved: true, accepted } }];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst l = $('Generate Preview & Message').first().json;\nconst resp = $input.first().json || {};\nconst now = new Date();\nconst today = now.toISOString().slice(0,10);\nconst digits = l.phone_digits;\nconst market = l.market || 'US';\nconst key = l.dedup_key || (market + ':' + digits);\n\n// Lesbarer Sende-Zeitpunkt fuer den Caller (Markt-Zeitzone)\nconst tz = market === 'DE' ? 'Europe/Berlin' : 'America/New_York';\nlet sentHuman = now.toISOString();\ntry {\n  sentHuman = now.toLocaleString(market === 'DE' ? 'de-DE' : 'en-US', { timeZone: tz, dateStyle: 'short', timeStyle: 'short' });\n} catch(e) {}\n\n// Akzeptiert nur wenn Meta eine message id zurueckgibt.\n// Fehlgeschlagen (Festnetz / kein WhatsApp) -> kein message id -> Meta berechnet nichts.\nconst accepted = !!(resp.messages && resp.messages[0] && resp.messages[0].id);\n\nif (!staticData.whatsappMessaged) staticData.whatsappMessaged = {};\n// Immer markieren, damit dieselbe Nummer nie erneut angeschrieben wird\nstaticData.whatsappMessaged[key] = { at: now.toISOString(), name: l.business_name, accepted, market };\n\nif (!staticData.waDailyCosts) staticData.waDailyCosts = {};\nif (!staticData.waDailyCosts[today]) staticData.waDailyCosts[today] = {};\nif (!staticData.waDailyCosts[today][market]) staticData.waDailyCosts[today][market] = {count: 0, failed: 0, cost: 0};\nconst bucket = staticData.waDailyCosts[today][market];\n\nif (accepted) {\n  if (!staticData.waLeads) staticData.waLeads = [];\n  staticData.waLeads.push({\n    business_name: l.business_name,\n    phone: l.phone,\n    phone_digits: digits,\n    market,\n    industry: l.industry,\n    city: l.city,\n    address: l.address || '',\n    rating: l.rating || 0,\n    reviews_count: l.reviews_count || 0,\n    place_id: l.place_id || '',\n    maps_url: l.maps_url || '',\n    score: l.score || 0,\n    grade: l.grade || 'C',\n    status: 'sent',\n    sent_at: now.toISOString(),\n    sent_human: sentHuman\n  });\n  if (staticData.waLeads.length > 1000) staticData.waLeads = staticData.waLeads.slice(-1000);\n\n  bucket.count++;\n  // US ~$0.025, DE Marketing ~$0.08 pro Nachricht\n  const rate = market === 'DE' ? 0.08 : 0.025;\n  bucket.cost = parseFloat((bucket.count * rate).toFixed(4));\n} else {\n  bucket.failed = (bucket.failed || 0) + 1;\n}\n\nreturn [{ json: { ...l, saved: true, accepted, sent_human: sentHuman, sent_at: now.toISOString(), date: today } }];"
       }
     },
     {
@@ -161,7 +161,7 @@
       "typeVersion": 2,
       "position": [1960, 380],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst today = new Date().toISOString().slice(0,10);\nconst dayData = (staticData.waDailyCosts || {})[today] || {count:0, failed:0, cost:0};\nconst sent = $input.all();\n\nlet text = 'WHATSAPP OUTREACH ABGESCHLOSSEN\\n\\n';\ntext += 'Zugestellt heute: ' + dayData.count + ' Nachrichten\\n';\nif (dayData.failed) text += 'Kein WhatsApp (uebersprungen): ' + dayData.failed + '\\n';\ntext += 'Kosten heute: $' + dayData.cost.toFixed(4) + '\\n\\n';\n\nconst delivered = sent.filter(s => s.json.accepted);\nif (delivered.length > 0) {\n  text += 'Diese Runde zugestellt:\\n';\n  delivered.forEach(s => {\n    const l = s.json;\n    text += '  - ' + (l.business_name||'?') + ' (' + (l.city||'') + ')\\n';\n  });\n}\n\nreturn [{ json: { report_text: text } }];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst today = new Date().toISOString().slice(0,10);\nconst dayData = (staticData.waDailyCosts || {})[today] || {};\nconst sent = $input.all();\n\nconst us = dayData.US || {count:0, failed:0, cost:0};\nconst de = dayData.DE || {count:0, failed:0, cost:0};\nconst totalCount = (us.count||0) + (de.count||0);\nconst totalCost = (us.cost||0) + (de.cost||0);\n\nlet text = 'WHATSAPP OUTREACH ABGESCHLOSSEN\\n\\n';\ntext += 'USA: ' + (us.count||0) + ' gesendet';\nif (us.failed) text += ' | ' + us.failed + ' kein WhatsApp';\ntext += ' | ~$' + (us.cost||0).toFixed(2) + '\\n';\ntext += 'DE:  ' + (de.count||0) + ' gesendet';\nif (de.failed) text += ' | ' + de.failed + ' kein WhatsApp';\ntext += ' | ~$' + (de.cost||0).toFixed(2) + '\\n';\ntext += '----\\n';\ntext += 'Gesamt heute: ' + totalCount + ' Nachrichten | ~$' + totalCost.toFixed(2) + '\\n\\n';\n\nconst delivered = sent.filter(s => s.json.accepted);\nif (delivered.length > 0) {\n  text += 'Diese Runde zugestellt:\\n';\n  delivered.forEach(s => {\n    const l = s.json;\n    const flag = l.market === 'DE' ? 'DE' : 'US';\n    text += '  [' + flag + '] ' + (l.business_name||'?') + ' (' + (l.city||'') + ') — ' + (l.sent_human||'') + '\\n';\n  });\n}\n\nreturn [{ json: { report_text: text } }];"
       }
     },
     {
@@ -184,6 +184,38 @@
       }
     },
     {
+      "id": "code-sheet-row",
+      "name": "Build Sheet Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1960, 560],
+      "parameters": {
+        "jsCode": "// Nur erfolgreich zugestellte Leads kommen ins Google Sheet (1 Zeile pro Lead).\n// Spalten muessen im Sheet exakt so heissen (Zeile 1):\n// Datum | Gesendet | Markt | Firma | Branche | Stadt | Bewertung | Reviews | Adresse | Telefon | Maps | Note | Status | Notizen\nconst rows = [];\nfor (const item of $input.all()) {\n  const l = item.json;\n  if (!l.accepted) continue;\n  rows.push({ json: {\n    Datum: l.date || new Date().toISOString().slice(0,10),\n    Gesendet: l.sent_human || '',\n    Markt: l.market || 'US',\n    Firma: l.business_name || '',\n    Branche: l.industry || '',\n    Stadt: l.city || '',\n    Bewertung: l.rating || 0,\n    Reviews: l.reviews_count || 0,\n    Adresse: l.address || '',\n    Telefon: l.phone || '',\n    Maps: l.maps_url || '',\n    Note: l.grade || 'C',\n    Status: 'offen',\n    Notizen: ''\n  }});\n}\nreturn rows;"
+      }
+    },
+    {
+      "id": "gsheet-append",
+      "name": "Google Sheet: Lead eintragen",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2180, 560],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "value": "GOOGLE_SHEET_ID", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "Leads", "mode": "name" },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_WITH_GOOGLE_SHEETS_CREDENTIAL", "name": "Google Sheets account" }
+      }
+    },
+    {
       "id": "wh-getleads",
       "name": "Get WA Leads Webhook",
       "type": "n8n-nodes-base.webhook",
@@ -203,7 +235,7 @@
       "typeVersion": 2,
       "position": [420, 760],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\n// Beste Leads zuerst (Note A oben), dann max 15 fuer den Cold-Caller\nconst leads = (staticData.waLeads || [])\n  .slice()\n  .sort((a, b) => (b.score || 0) - (a.score || 0))\n  .slice(0, 15);\nif (leads.length === 0) {\n  return [{ json: { leads_text: 'Noch keine Leads. Starte mit /start.' } }];\n}\nlet text = 'BESTE LEADS FUER COLD CALLS (Note A zuerst):\\n\\n';\nleads.forEach((l, i) => {\n  text += '[' + (l.grade || 'C') + '] ' + (l.business_name || '?') + '\\n';\n  text += '   ' + (l.industry || '-') + ' | ' + (l.city || '-') + '\\n';\n  if (l.rating) text += '   ' + l.rating + ' Sterne (' + (l.reviews_count || 0) + ' Reviews)\\n';\n  if (l.address) text += '   ' + l.address + '\\n';\n  text += '   Anrufen: ' + (l.phone || '-') + '\\n';\n  if (l.maps_url) text += '   Maps: ' + l.maps_url + '\\n';\n  text += '\\n';\n});\nreturn [{ json: { leads_text: text } }];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\n// Beste Leads zuerst (Note A oben), dann max 15 fuer den Cold-Caller\nconst leads = (staticData.waLeads || [])\n  .slice()\n  .sort((a, b) => (b.score || 0) - (a.score || 0))\n  .slice(0, 15);\nif (leads.length === 0) {\n  return [{ json: { leads_text: 'Noch keine Leads. Starte mit /start.' } }];\n}\nlet text = 'BESTE LEADS FUER COLD CALLS (Note A zuerst):\\n\\n';\nleads.forEach((l, i) => {\n  const flag = l.market === 'DE' ? 'DE' : 'US';\n  text += '[' + (l.grade || 'C') + '] [' + flag + '] ' + (l.business_name || '?') + '\\n';\n  text += '   ' + (l.industry || '-') + ' | ' + (l.city || '-') + '\\n';\n  if (l.rating) text += '   ' + l.rating + ' Sterne (' + (l.reviews_count || 0) + ' Reviews)\\n';\n  if (l.address) text += '   ' + l.address + '\\n';\n  text += '   Anrufen: ' + (l.phone || '-') + '\\n';\n  if (l.sent_human) text += '   WhatsApp gesendet: ' + l.sent_human + '\\n';\n  if (l.maps_url) text += '   Maps: ' + l.maps_url + '\\n';\n  text += '\\n';\n});\nreturn [{ json: { leads_text: text } }];"
       }
     },
     {
@@ -226,7 +258,7 @@
       "typeVersion": 2,
       "position": [420, 900],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst q = $input.first().json.query || {};\nlet digits = String(q.phone || '').replace(/[^0-9]/g, '');\nif (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1);\nconst lead = (staticData.waLeads || []).find(l => l.phone_digits === digits) || {};\nreturn [{ json: {\n  found: !!lead.business_name,\n  business_name: lead.business_name || '',\n  industry: lead.industry || '',\n  city: lead.city || '',\n  address: lead.address || '',\n  rating: lead.rating || '',\n  reviews_count: lead.reviews_count || 0,\n  maps_url: lead.maps_url || '',\n  phone: lead.phone || ''\n} }];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst q = $input.first().json.query || {};\nlet raw = String(q.phone || '').replace(/[^0-9]/g, '');\n// Inbound von Meta kommt international (z.B. 1XXXXXXXXXX oder 49XXXXXXXXX).\n// Wir matchen tolerant: Lead-Eintrag findet sich, wenn seine Ziffern am Ende passen.\nconst leads = staticData.waLeads || [];\nlet lead = leads.find(l => raw.endsWith(l.phone_digits)) ||\n           leads.find(l => l.phone_digits && raw.includes(l.phone_digits)) || {};\nreturn [{ json: {\n  found: !!lead.business_name,\n  business_name: lead.business_name || '',\n  market: lead.market || '',\n  industry: lead.industry || '',\n  city: lead.city || '',\n  address: lead.address || '',\n  rating: lead.rating || '',\n  reviews_count: lead.reviews_count || 0,\n  maps_url: lead.maps_url || '',\n  sent_human: lead.sent_human || '',\n  phone: lead.phone || ''\n} }];"
       }
     }
   ],
@@ -265,7 +297,13 @@
       "main": [[{ "node": "Save & Mark Messaged", "type": "main", "index": 0 }]]
     },
     "Save & Mark Messaged": {
-      "main": [[{ "node": "Agg: WhatsApp Report", "type": "main", "index": 0 }]]
+      "main": [[
+        { "node": "Agg: WhatsApp Report", "type": "main", "index": 0 },
+        { "node": "Build Sheet Row", "type": "main", "index": 0 }
+      ]]
+    },
+    "Build Sheet Row": {
+      "main": [[{ "node": "Google Sheet: Lead eintragen", "type": "main", "index": 0 }]]
     },
     "Agg: WhatsApp Report": {
       "main": [[{ "node": "TG: WhatsApp Bericht", "type": "main", "index": 0 }]]
