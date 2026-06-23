@@ -1,0 +1,18 @@
+[
+  {
+    "action": { "type": "css-display-none", "selector": "ytd-rich-grid-renderer" },
+    "trigger": { "url-filter": ".*", "if-domain": ["*youtube.com"] }
+  },
+  {
+    "action": { "type": "css-display-none", "selector": "ytd-rich-item-renderer" },
+    "trigger": { "url-filter": ".*", "if-domain": ["*youtube.com"] }
+  },
+  {
+    "action": { "type": "css-display-none", "selector": "ytd-rich-section-renderer" },
+    "trigger": { "url-filter": ".*", "if-domain": ["*youtube.com"] }
+  },
+  {
+    "action": { "type": "css-display-none", "selector": "ytd-feed-filter-chip-bar-renderer" },
+    "trigger": { "url-filter": ".*", "if-domain": ["*youtube.com"] }
+  }
+]
