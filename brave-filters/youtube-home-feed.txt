@@ -1,0 +1,25 @@
+! Title: YouTube Home Feed Aus
+! Description: Versteckt den YouTube Startseiten-Feed in Brave (iOS & Desktop)
+! Homepage: https://github.com/atakan-24/automation
+! Expires: 1 day
+! Version: 1.0.0
+
+! === YouTube Home Feed ausblenden ===
+
+! Haupt-Feed Grid
+youtube.com##ytd-rich-grid-renderer
+
+! Feed-Inhalte auf der Startseite
+youtube.com##ytd-browse[page-subtype="home"] #contents.ytd-browse
+
+! Rechte Sidebar auf Startseite
+youtube.com##ytd-browse[page-subtype="home"] #secondary.ytd-browse
+
+! Feed-Items einzeln
+youtube.com##ytd-rich-item-renderer
+
+! Chip-Filter-Leiste (Kategorien) optional
+! youtube.com##ytd-feed-filter-chip-bar-renderer
+
+! Leere Seite statt Feed anzeigen (optional)
+youtube.com##ytd-browse[page-subtype="home"] #primary-inner > ytd-rich-grid-renderer

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Feed Toggle – Brave iOS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #ff6b35;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: #8b949e;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #58a6ff;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card p {
+      font-size: 13px;
+      color: #8b949e;
+      line-height: 1.6;
+      margin-bottom: 14px;
+    }
+
+    .steps {
+      list-style: none;
+      counter-reset: step;
+      margin-bottom: 14px;
+    }
+
+    .steps li {
+      counter-increment: step;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+      color: #c9d1d9;
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+
+    .steps li::before {
+      content: counter(step);
+      background: #ff6b35;
+      color: #fff;
+      font-weight: 700;
+      font-size: 11px;
+      min-width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .code-block {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: 'SF Mono', 'Courier New', monospace;
+      font-size: 11px;
+      color: #79c0ff;
+      word-break: break-all;
+      line-height: 1.5;
+      margin-bottom: 10px;
+      user-select: all;
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .btn:active { opacity: 0.75; }
+
+    .btn-primary {
+      background: #ff6b35;
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: #21262d;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-green { background: #1a4731; color: #3fb950; }
+    .badge-orange { background: #3d2200; color: #ff7b35; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #21262d;
+      margin: 14px 0;
+    }
+
+    .toggle-demo {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+
+    .toggle-demo span { font-size: 13px; color: #c9d1d9; }
+
+    .toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+    }
+
+    .toggle-switch input { display: none; }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: #30363d;
+      border-radius: 24px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .slider::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 18px;
+      height: 18px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    input:checked + .slider { background: #ff6b35; }
+    input:checked + .slider::after { transform: translateX(20px); }
+
+    #status-msg {
+      font-size: 12px;
+      text-align: center;
+      color: #3fb950;
+      min-height: 18px;
+      margin-top: 6px;
+    }
+
+    .filter-url {
+      font-size: 11px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>&#9654; YouTube Feed Toggle</h1>
+  <p class="subtitle">Brave iOS &bull; Home Feed ein/ausschalten</p>
+
+  <!-- METHODE 1: Bookmarklet -->
+  <div class="card">
+    <h2>&#128278; Methode 1 &mdash; Bookmarklet <span class="badge badge-green">Empfohlen</span></h2>
+    <p>Speichere das Bookmarklet in Brave. Tippe es auf YouTube an &mdash; der Home Feed verschwindet. Nochmal tippen: Feed erscheint wieder.</p>
+
+    <ol class="steps">
+      <li>Kopiere den Code unten.</li>
+      <li>Tippe in Brave auf das <strong>Lesezeichen-Symbol</strong> &rarr; <strong>Lesezeichen hinzuf&uuml;gen</strong>.</li>
+      <li>L&ouml;sche die URL komplett und f&uuml;ge den kopierten Code ein.</li>
+      <li>Namen vergeben z.B. &bdquo;YT Feed Toggle&ldquo; &rarr; Speichern.</li>
+      <li>Auf YouTube &ouml;ffnen &rarr; Lesezeichen antippen &rarr; Feed weg!</li>
+    </ol>
+
+    <div class="code-block" id="bookmarklet-code">javascript:(function(){var s=document.getElementById('__ytFeedToggle');if(s){s.remove();}else{s=document.createElement('style');s.id='__ytFeedToggle';s.textContent='ytd-rich-grid-renderer,ytd-browse[page-subtype="home"] #contents.ytd-browse,ytd-browse[page-subtype="home"] #secondary.ytd-browse{display:none!important}';document.head.appendChild(s);}})();</div>
+
+    <button class="btn btn-primary" onclick="copyBookmarklet()">
+      &#128203; Code kopieren
+    </button>
+    <p id="status-msg"></p>
+  </div>
+
+  <!-- METHODE 2: Brave Filter List -->
+  <div class="card">
+    <h2>&#128737; Methode 2 &mdash; Brave Filter Liste <span class="badge badge-orange">Dauerhaft aus</span></h2>
+    <p>F&uuml;ge die Filter-URL in Brave ein. Der Home Feed ist dann <strong>immer</strong> ausgeblendet &mdash; ohne Tippen.</p>
+
+    <ol class="steps">
+      <li>Kopiere die URL unten.</li>
+      <li>Brave &rarr; <strong>Einstellungen</strong> &rarr; <strong>Brave Shields &amp; Datenschutz</strong> &rarr; <strong>Inhaltsfilterung</strong>.</li>
+      <li>Ganz unten: <strong>Benutzerdefinierte Filterliste hinzuf&uuml;gen</strong>.</li>
+      <li>URL einf&uuml;gen &rarr; Best&auml;tigen.</li>
+    </ol>
+
+    <div class="code-block filter-url" id="filter-url">https://raw.githubusercontent.com/atakan-24/automation/claude/brave-ios-youtube-feed-toggle-v26own/brave-filters/youtube-home-feed.txt</div>
+
+    <button class="btn btn-secondary" onclick="copyFilterUrl()">
+      &#128203; Filter-URL kopieren
+    </button>
+    <p id="status-msg2"></p>
+  </div>
+
+  <!-- Live Demo -->
+  <div class="card">
+    <h2>&#127381; Live-Demo (auf dieser Seite)</h2>
+    <p>Teste den Toggle direkt hier auf dieser Seite.</p>
+    <div class="toggle-demo">
+      <span>YouTube Home Feed</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="demo-toggle" checked onchange="demoToggle(this)">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div id="demo-feed" style="background:#1c1c1e;border-radius:8px;padding:14px;font-size:13px;color:#8b949e;text-align:center;">
+      &#127909; YouTube Home Feed &mdash; sichtbar
+    </div>
+  </div>
+
+  <script>
+    function copyBookmarklet() {
+      var code = document.getElementById('bookmarklet-code').textContent;
+      navigator.clipboard.writeText(code).then(function() {
+        var msg = document.getElementById('status-msg');
+        msg.textContent = '✓ Kopiert!';
+        setTimeout(function(){ msg.textContent = ''; }, 2000);
+      });
+    }
+
+    function copyFilterUrl() {
+      var url = document.getElementById('filter-url').textContent.trim();
+      navigator.clipboard.writeText(url).then(function() {
+        var msg = document.getElementById('status-msg2');
+        msg.textContent = '✓ URL kopiert!';
+        setTimeout(function(){ msg.textContent = ''; }, 2000);
+      });
+    }
+
+    function demoToggle(cb) {
+      var feed = document.getElementById('demo-feed');
+      if (cb.checked) {
+        feed.style.display = '';
+        feed.textContent = 'Ἲ5 YouTube Home Feed — sichtbar';
+      } else {
+        feed.style.display = 'none';
+      }
+    }
+  </script>
+
+</body>
+</html>
